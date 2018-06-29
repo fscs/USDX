@@ -897,24 +897,7 @@ begin
     begin
       if not Song[i].Main then
       begin
-        case Filter of
-          fltAll:
-            TmpString := Song[I].ArtistNoAccent + ' ' + Song[i].TitleNoAccent + ' ' + Song[i].LanguageNoAccent + ' ' + Song[i].EditionNoAccent + ' ' + Song[i].GenreNoAccent + ' ' + IntToStr(Song[i].Year) + ' ' + Song[i].CreatorNoAccent; //+ ' ' + Song[i].Folder;
-          fltTitle:
-            TmpString := Song[I].TitleNoAccent;
-          fltArtist:
-            TmpString := Song[I].ArtistNoAccent;
-          fltLanguage:
-            TmpString := Song[I].LanguageNoAccent;
-          fltEdition:
-            TmpString := Song[I].EditionNoAccent;
-          fltGenre:
-            TmpString := Song[I].GenreNoAccent;
-          fltYear:
-            TmpString := IntToStr(Song[I].Year);
-          fltCreator:
-            TmpString := Song[I].CreatorNoAccent;
-        end;
+        TmpString := Song[I].ArtistNoAccent + ' ' + Song[i].TitleNoAccent + ' ' + Song[i].LanguageNoAccent + ' ' + Song[i].EditionNoAccent + ' ' + Song[i].GenreNoAccent + ' ' + IntToStr(Song[i].Year) + ' ' + Song[i].CreatorNoAccent; //+ ' ' + Song[i].Folder;
         Song[i].Visible := true;
         // Look for every searched word
         for J := 0 to High(WordArray) do

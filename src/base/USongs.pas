@@ -409,7 +409,7 @@ begin
   // Note: Do not use TList.Sort() as it uses QuickSort which is instable.
   // For example, if a list is sorted by title first and
   // by artist afterwards, the songs of an artist will not be sorted by title anymore.
-  // The stable MergeSort guarantees to maintain this order. 
+  // The stable MergeSort guarantees to maintain this order.
   MergeSort(SongList, CompareFunc);
 end;
 
@@ -856,7 +856,7 @@ end;
 
 (**
  * Returns the index of a song in the subset of all visible songs.
- * If all songs are visible, the result will be equal to the Index parameter. 
+ * If all songs are visible, the result will be equal to the Index parameter.
  *)
 function TCatSongs.VisibleIndex(Index: integer): integer;
 begin
@@ -904,24 +904,7 @@ begin
     begin
       if not Song[i].Main then
       begin
-        case Filter of
-          fltAll:
-            TmpString := Song[I].ArtistASCII + ' ' + Song[i].TitleASCII + ' ' + Song[i].LanguageASCII + ' ' + Song[i].EditionASCII + ' ' + Song[i].GenreASCII + ' ' + IntToStr(Song[i].Year) + ' ' + Song[i].CreatorASCII; //+ ' ' + Song[i].Folder;
-          fltTitle:
-            TmpString := Song[I].TitleASCII;
-          fltArtist:
-            TmpString := Song[I].ArtistASCII;
-          fltLanguage:
-            TmpString := Song[I].LanguageASCII;
-          fltEdition:
-            TmpString := Song[I].EditionASCII;
-          fltGenre:
-            TmpString := Song[I].GenreASCII;
-          fltYear:
-            TmpString := IntToStr(Song[I].Year);
-          fltCreator:
-            TmpString := Song[I].CreatorASCII;
-        end;
+        TmpString := Song[I].ArtistASCII + ' ' + Song[i].TitleASCII + ' ' + Song[i].LanguageASCII + ' ' + Song[i].EditionASCII + ' ' + Song[i].GenreASCII + ' ' + IntToStr(Song[i].Year) + ' ' + Song[i].CreatorASCII; //+ ' ' + Song[i].Folder;
         Song[i].Visible := true;
         // Look for every searched word
         for J := 0 to High(WordArray) do

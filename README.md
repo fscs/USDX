@@ -260,10 +260,10 @@ For linking and running the game, the following libraries are also required:
 2. `cd USDX`
 4. `./autogen.sh`
 5. `./configure` (or use _autoconf_)
-6. `make`
+6. `make -j4`
 7. Play the game, 
    * install the game and start it
-     - `sudo make install`
+     - `sudo checkinstall`, and change package name to `ultrastardx`
      - `ultrastardx`
    * or start it directly  
      `./game/ultrastardx`

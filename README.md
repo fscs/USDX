@@ -250,7 +250,7 @@ For linking and running the game, the following libraries are also required:
   * if you want to build --with-libprojectM, you also need
     `sudo apt-get install g++ libprojectm-dev`
   * for arch linux there is an aur package called [ultrastardx-git](https://aur.archlinux.org/packages/ultrastardx-git)
-2. `git clone https://github.com/UltraStar-Deluxe/USDX`
+2. `git clone https://github.com/fscs/USDX.git`
 2. `cd USDX`
 4. `./autogen.sh`
 5. `./configure` (or use _autoconf_)

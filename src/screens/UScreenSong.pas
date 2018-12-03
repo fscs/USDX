@@ -692,7 +692,7 @@ begin
     SDL_ModState := SDL_GetModState and (KMOD_LSHIFT + KMOD_RSHIFT
     + KMOD_LCTRL + KMOD_RCTRL + KMOD_LALT  + KMOD_RALT);
 
-    //Jump to Artist/Title
+    //Jump to Artist/Title [disabled]
     if ((SDL_ModState and KMOD_LALT <> 0) and (FreeListMode)) then
     begin
       if(PressedKey > 1114111) then
@@ -705,55 +705,253 @@ begin
       begin
         I2 := Length(CatSongs.Song);
 
-        //Jump To Title
-        if (SDL_ModState = (KMOD_LALT or KMOD_LSHIFT)) then
+        // Original code had jump to Title/Artist here, but we enable the
+        // removed functionalty for letter-without-modifier here instead
+        if (SDL_ModState = KMOD_LALT) then
         begin
-          for I := 1 to High(CatSongs.Song) do
-          begin
-            if (CatSongs.Song[(I + Interaction) mod I2].Visible) then
+          case UpperLetter of
+          Ord('Q'):
             begin
-              TempStr := CatSongs.Song[(I + Interaction) mod I2].Title;
-              if (Length(TempStr) > 0) and
-                 (UCS4UpperCase(UTF8ToUCS4String(TempStr)[0]) = UpperLetter) then
+            Result := false;
+            Exit;
+            end;
+
+          Ord('K'):
+            begin
+            UAudioPlaybackBase.ToggleVoiceRemoval();
+            StopVideoPreview();
+            StopMusicPreview();
+            StartMusicPreview();
+            StartVideoPreview();
+            Exit;
+            end;
+
+          Ord('F'):
+            begin
+            if (Mode = smNormal) and (SDL_ModState = KMOD_LSHIFT) and MakeMedley then
+            begin
+              if Length(PlaylistMedley.Song)>0 then
               begin
-                SkipTo(CatSongs.VisibleIndex((I + Interaction) mod I2), (I + Interaction) mod I2, VS);
+              SetLength(PlaylistMedley.Song, Length(PlaylistMedley.Song)-1);
+              PlaylistMedley.NumMedleySongs := Length(PlaylistMedley.Song);
+              end;
 
-                AudioPlayback.PlaySound(SoundLib.Change);
+              if Length(PlaylistMedley.Song)=0 then
+              MakeMedley := false;
+            end else if (Mode = smNormal) and (CatSongs.Song[Interaction].Medley.Source>=msCalculated) and
+              (Length(getVisibleMedleyArr(msCalculated)) > 0) then
+            begin
+              MakeMedley := true;
+              StartMedley(99, msCalculated);
+            end;
+            end;
 
-                SetScrollRefresh;
-                //Break and Exit
-                Exit;
+          Ord('M'): //Show SongMenu
+            begin
+            if (Songs.SongList.Count > 0) then
+            begin
+
+              if not(MakeMedley) and (FreeListMode) and (Mode <> smPartyFree) and (Mode <> smPartyTournament) then
+              begin
+              if (not CatSongs.Song[Interaction].Main) then // clicked on Song
+              begin
+                if CatSongs.CatNumShow = -3 then
+                begin
+                ScreenSongMenu.OnShow;
+
+                if (ScreenSong.Mode = smJukebox) then
+                  ScreenSongMenu.MenuShow(SM_Jukebox)
+                else
+                  ScreenSongMenu.MenuShow(SM_Playlist);
+                end
+                else
+                begin
+                ScreenSongMenu.OnShow;
+
+                if (ScreenSong.Mode = smJukebox) then
+                  ScreenSongMenu.MenuShow(SM_Jukebox)
+                else
+                  ScreenSongMenu.MenuShow(SM_Main);
+                end;
+              end
+              else
+              begin
+                ScreenSongMenu.OnShow;
+                if (ScreenSong.Mode = smJukebox) then
+                ScreenSongMenu.MenuShow(SM_Jukebox)
+                else
+                ScreenSongMenu.MenuShow(SM_Playlist_Load);
+              end;
+              end //Party Mode -> Show Party Menu
+              else
+              begin
+
+              if (MakeMedley) then
+              begin
+                ScreenSongMenu.MenuShow(SM_Medley)
+              end
+              else
+              begin
+                ScreenSongMenu.OnShow;
+                if (Mode <> smPartyFree) and (Mode <> smPartyTournament) then
+                ScreenSongMenu.MenuShow(SM_Party_Main)
+                else
+                ScreenSongMenu.MenuShow(SM_Party_Free_Main);
+              end;
               end;
             end;
-          end;
-        end
-        //Jump to Artist
-        else if (SDL_ModState = KMOD_LALT) then
-        begin
-          for I := 1 to High(CatSongs.Song) do
-          begin
-            if (CatSongs.Song[(I + Interaction) mod I2].Visible) then
-            begin
-              TempStr := CatSongs.Song[(I + Interaction) mod I2].Artist;
-              if Length(TempStr) > 0 then TempLetter := UCS4UpperCase(UTF8ToUCS4String(TempStr)[0])
-              else                        TempLetter := 0;
-              //in case of tabs, the artist string may be enclosed in brackets so we check the first charactere is a bracket then go to next
-              // 91 -> '['
-              if (Length(TempStr) > 1) and (TempLetter = 91) then
-                 TempLetter := UCS4UpperCase(UTF8ToUCS4String(TempStr)[1]);
-              if (TempLetter = UpperLetter) then
-              begin
-                SkipTo(CatSongs.VisibleIndex((I + Interaction) mod I2), (I + Interaction) mod I2, VS);
-
-                AudioPlayback.PlaySound(SoundLib.Change);
-
-                SetScrollRefresh;
-
-                //Break and Exit
-                Exit;
-              end;
+            Exit;
             end;
-          end;
+
+          Ord('P'): //Show Playlist Menu
+            begin
+            if (Songs.SongList.Count > 0) and (FreeListMode) then
+            begin
+              ScreenSongMenu.OnShow;
+              ScreenSongMenu.MenuShow(SM_Playlist_Load);
+            end;
+            Exit;
+            end;
+
+          Ord('J'): //Show Jumpto Menu
+            begin
+            if (Songs.SongList.Count > 0) and (FreeListMode) then
+            begin
+              ScreenSongJumpto.Visible := true;
+            end;
+            Exit;
+            end;
+
+          Ord('E'):
+            begin
+            OpenEditor;
+            Exit;
+            end;
+
+          Ord('S'):
+            begin
+            if not (SDL_ModState = KMOD_LSHIFT) and (CatSongs.Song[Interaction].Medley.Source>=msTag)
+              and not MakeMedley and (Mode = smNormal) then
+              StartMedley(0, msTag)
+            else if not MakeMedley and
+              (CatSongs.Song[Interaction].Medley.Source>=msCalculated) and
+              (Mode = smNormal)then
+              StartMedley(0, msCalculated);
+            end;
+
+          Ord('D'):
+            begin
+            if not (SDL_ModState = KMOD_LSHIFT) and (Mode = smNormal) and
+              (Length(getVisibleMedleyArr(msTag)) > 0) and not MakeMedley then
+              StartMedley(5, msTag)
+            else if (Mode = smNormal) and not MakeMedley and
+              (length(getVisibleMedleyArr(msCalculated))>0) then
+              StartMedley(5, msCalculated);
+            end;
+
+          Ord('R'):
+            begin
+            Randomize;
+            if (Songs.SongList.Count > 0) and
+              (FreeListMode) then
+            begin
+              if (SDL_ModState = KMOD_LSHIFT) and (Ini.TabsAtStartup = 1) then // random category
+              begin
+              I2 := 0; // count cats
+              for I := 0 to High(CatSongs.Song) do
+              begin
+                if CatSongs.Song[I].Main then
+                Inc(I2);
+              end;
+
+              I2 := Random(I2 + 1); // random and include I2
+
+              // find cat:
+              for I := 0 to High(CatSongs.Song) do
+                begin
+                if CatSongs.Song[I].Main then
+                Dec(I2);
+                if (I2 <= 0) then
+                begin
+                // show cat in top left mod
+                ShowCatTL (I);
+
+                Interaction := I;
+
+                CatSongs.ShowCategoryList;
+                CatSongs.ClickCategoryButton(I);
+                SelectNext;
+                FixSelected;
+                break;
+                end;
+              end;
+              end
+              else if (SDL_ModState = KMOD_LCTRL) and (Ini.TabsAtStartup = 1) then // random in all categories
+              begin
+              repeat
+                I2 := Random(High(CatSongs.Song) + 1);
+              until (not CatSongs.Song[I2].Main);
+
+              // search cat
+              for I := I2 downto 0 do
+              begin
+              if CatSongs.Song[I].Main then
+                break;
+              end;
+
+              // in I is now the categorie in I2 the song
+
+              // choose cat
+              CatSongs.ShowCategoryList;
+
+              // show cat in top left mod
+              ShowCatTL (I);
+
+              CatSongs.ClickCategoryButton(I);
+              SelectNext;
+
+              // Fix: not existing song selected:
+              //if (I + 1 = I2) then
+                Inc(I2);
+
+              // choose song
+              SkipTo(I2 - I);
+              end
+              else // random in one category
+              begin
+              SkipTo(Random(CatSongs.VisibleSongs));
+              end;
+              AudioPlayback.PlaySound(SoundLib.Change);
+
+              SetScrollRefresh;
+            end;
+            Exit;
+            end;
+
+          Ord('W'):
+            begin
+
+            if not CatSongs.Song[Interaction].Main then
+            begin
+              WebList := '';
+
+              for I:= 0 to High(Database.NetworkUser) do
+              begin
+              DllMan.LoadWebsite(I);
+              VerifySong := DllMan.WebsiteVerifySong(CatSongs.Song[Interaction].MD5);
+
+              if (VerifySong = 'OK_SONG') then
+                WebList := Database.NetworkUser[I].Website + #13
+              end;
+
+              if (WebList <> '') then
+              ScreenPopupInfo.ShowPopup(Format(Language.Translate('WEBSITE_EXIST_SONG'), [WebList]))
+              else
+              ScreenPopupError.ShowPopup(Language.Translate('WEBSITE_NOT_EXIST_SONG'));
+            end;
+            end;
+
+          end; // normal keys + L_ALT
         end;
       end;
 
@@ -811,6 +1009,7 @@ begin
     // **********************
 
     // check normal keys
+<<<<<<< HEAD
     case PressedKey of
       SDLK_Q:
         begin
@@ -1065,6 +1264,260 @@ begin
           end;
         end;
 
+||||||| parent of 6779ddb (make every key in song screen initiate search and move special letter actions with Alt+X)
+    case UCS4UpperCase(CharCode) of
+      Ord('Q'):
+        begin
+          Result := false;
+          Exit;
+        end;
+
+      Ord('K'):
+        begin
+          UAudioPlaybackBase.ToggleVoiceRemoval();
+          StopVideoPreview();
+          StopMusicPreview();
+          StartMusicPreview();
+          StartVideoPreview();
+          Exit;
+        end;
+
+      Ord('F'):
+        begin
+          if (Mode = smNormal) and (SDL_ModState = KMOD_LSHIFT) and MakeMedley then
+          begin
+            if Length(PlaylistMedley.Song)>0 then
+            begin
+              SetLength(PlaylistMedley.Song, Length(PlaylistMedley.Song)-1);
+              PlaylistMedley.NumMedleySongs := Length(PlaylistMedley.Song);
+            end;
+
+            if Length(PlaylistMedley.Song)=0 then
+              MakeMedley := false;
+          end else if (Mode = smNormal) and (CatSongs.Song[Interaction].Medley.Source>=msCalculated) and
+            (Length(getVisibleMedleyArr(msCalculated)) > 0) then
+          begin
+            MakeMedley := true;
+            StartMedley(99, msCalculated);
+          end;
+        end;
+
+      Ord('M'): //Show SongMenu
+        begin
+          if (Songs.SongList.Count > 0) then
+          begin
+
+            if not(MakeMedley) and (FreeListMode) and (Mode <> smPartyFree) and (Mode <> smPartyTournament) then
+            begin
+              if (not CatSongs.Song[Interaction].Main) then // clicked on Song
+              begin
+                if CatSongs.CatNumShow = -3 then
+                begin
+                  ScreenSongMenu.OnShow;
+
+                  if (ScreenSong.Mode = smJukebox) then
+                    ScreenSongMenu.MenuShow(SM_Jukebox)
+                  else
+                    ScreenSongMenu.MenuShow(SM_Playlist);
+                end
+                else
+                begin
+                  ScreenSongMenu.OnShow;
+
+                  if (ScreenSong.Mode = smJukebox) then
+                    ScreenSongMenu.MenuShow(SM_Jukebox)
+                  else
+                    ScreenSongMenu.MenuShow(SM_Main);
+                end;
+              end
+              else
+              begin
+                ScreenSongMenu.OnShow;
+                if (ScreenSong.Mode = smJukebox) then
+                  ScreenSongMenu.MenuShow(SM_Jukebox)
+                else
+                  ScreenSongMenu.MenuShow(SM_Playlist_Load);
+              end;
+            end //Party Mode -> Show Party Menu
+            else
+            begin
+
+              if (MakeMedley) then
+              begin
+                ScreenSongMenu.MenuShow(SM_Medley)
+              end
+              else
+              begin
+                ScreenSongMenu.OnShow;
+                if (Mode <> smPartyFree) and (Mode <> smPartyTournament) then
+                  ScreenSongMenu.MenuShow(SM_Party_Main)
+                else
+                  ScreenSongMenu.MenuShow(SM_Party_Free_Main);
+              end;
+            end;
+          end;
+          Exit;
+        end;
+
+      Ord('P'): //Show Playlist Menu
+        begin
+          if (Songs.SongList.Count > 0) and (FreeListMode) then
+          begin
+            ScreenSongMenu.OnShow;
+            ScreenSongMenu.MenuShow(SM_Playlist_Load);
+          end;
+          Exit;
+        end;
+
+      Ord('J'): //Show Jumpto Menu
+        begin
+          if (Songs.SongList.Count > 0) and (FreeListMode) then
+          begin
+            ScreenSongJumpto.Visible := true;
+          end;
+          Exit;
+        end;
+
+      Ord('E'):
+        begin
+          OpenEditor;
+          Exit;
+        end;
+
+      Ord('S'):
+        begin
+          if not (SDL_ModState = KMOD_LSHIFT) and (CatSongs.Song[Interaction].Medley.Source>=msTag)
+            and not MakeMedley and (Mode = smNormal) then
+            StartMedley(0, msTag)
+          else if not MakeMedley and
+            (CatSongs.Song[Interaction].Medley.Source>=msCalculated) and
+            (Mode = smNormal)then
+            StartMedley(0, msCalculated);
+        end;
+
+      Ord('D'):
+        begin
+          if not (SDL_ModState = KMOD_LSHIFT) and (Mode = smNormal) and
+            (Length(getVisibleMedleyArr(msTag)) > 0) and not MakeMedley then
+            StartMedley(5, msTag)
+          else if (Mode = smNormal) and not MakeMedley and
+            (length(getVisibleMedleyArr(msCalculated))>0) then
+            StartMedley(5, msCalculated);
+        end;
+
+      Ord('R'):
+        begin
+          Randomize;
+          if (Songs.SongList.Count > 0) and
+             (FreeListMode) then
+          begin
+            if (SDL_ModState = KMOD_LSHIFT) and (Ini.TabsAtStartup = 1) then // random category
+            begin
+              I2 := 0; // count cats
+              for I := 0 to High(CatSongs.Song) do
+              begin
+                if CatSongs.Song[I].Main then
+                  Inc(I2);
+              end;
+
+              I2 := Random(I2 + 1); // random and include I2
+
+              // find cat:
+              for I := 0 to High(CatSongs.Song) do
+                begin
+                if CatSongs.Song[I].Main then
+                  Dec(I2);
+                if (I2 <= 0) then
+                begin
+                  // show cat in top left mod
+                  ShowCatTL (I);
+
+                  Interaction := I;
+
+                  CatSongs.ShowCategoryList;
+                  CatSongs.ClickCategoryButton(I);
+                  SelectNext;
+                  FixSelected;
+                  break;
+                end;
+              end;
+            end
+            else if (SDL_ModState = KMOD_LCTRL) and (Ini.TabsAtStartup = 1) then // random in all categories
+            begin
+              repeat
+                I2 := Random(High(CatSongs.Song) + 1);
+              until (not CatSongs.Song[I2].Main);
+
+              // search cat
+              for I := I2 downto 0 do
+              begin
+              if CatSongs.Song[I].Main then
+                break;
+              end;
+
+              // in I is now the categorie in I2 the song
+
+              // choose cat
+              CatSongs.ShowCategoryList;
+
+              // show cat in top left mod
+              ShowCatTL (I);
+
+              CatSongs.ClickCategoryButton(I);
+              SelectNext;
+
+              // Fix: not existing song selected:
+              //if (I + 1 = I2) then
+                Inc(I2);
+
+              // choose song
+              SkipTo(I2 - I);
+            end
+            else // random in one category
+            begin
+              SkipTo(Random(CatSongs.VisibleSongs));
+            end;
+            AudioPlayback.PlaySound(SoundLib.Change);
+
+            SetScrollRefresh;
+          end;
+          Exit;
+        end;
+
+      Ord('W'):
+        begin
+
+          if not CatSongs.Song[Interaction].Main then
+          begin
+            WebList := '';
+
+            for I:= 0 to High(Database.NetworkUser) do
+            begin
+              DllMan.LoadWebsite(I);
+              VerifySong := DllMan.WebsiteVerifySong(CatSongs.Song[Interaction].MD5);
+
+              if (VerifySong = 'OK_SONG') then
+                WebList := Database.NetworkUser[I].Website + #13
+            end;
+
+            if (WebList <> '') then
+              ScreenPopupInfo.ShowPopup(Format(Language.Translate('WEBSITE_EXIST_SONG'), [WebList]))
+            else
+              ScreenPopupError.ShowPopup(Language.Translate('WEBSITE_NOT_EXIST_SONG'));
+          end;
+        end;
+
+=======
+    if (PressedKey in ([SDLK_a..SDLK_z])) then
+    begin
+      if (Songs.SongList.Count > 0) and (FreeListMode) then
+      begin
+        ScreenSongJumpto.Visible := true;
+        Result := ScreenSongJumpto.ParseInput(PressedKey, CharCode, PressedDown);
+        Exit;
+      end;
+      Exit;
+>>>>>>> 6779ddb (make every key in song screen initiate search and move special letter actions with Alt+X)
     end; // normal keys
 
     // check special keys
@@ -3542,7 +3995,7 @@ begin
 
     if not ((TSongMenuMode(Ini.SongMenu) in [smChessboard, smList, smMosaic]) and (PrevInt > Interaction)) then
       Interaction := PrevInt;
-    
+
     if (TSongMenuMode(Ini.SongMenu) in [smChessboard, smMosaic]) then
     begin
       if (not Button[Interaction].Visible) then
@@ -3725,7 +4178,7 @@ begin
     end;
 
     AudioPlayback.Position := PreviewPos;
-  
+
     // set preview volume
     if Ini.PreviewFading = 0 then
     begin

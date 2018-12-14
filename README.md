@@ -263,7 +263,7 @@ For linking and running the game, the following libraries are also required:
 6. `make -j4`
 7. Play the game, 
    * install the game and start it
-     - `sudo checkinstall`, and change package name to `ultrastardx`
+     - `sudo checkinstall`, make sure that package name is `usdx`
      - `ultrastardx`
    * or start it directly  
      `./game/ultrastardx`

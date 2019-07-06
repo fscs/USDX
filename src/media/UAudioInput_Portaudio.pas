@@ -370,7 +370,8 @@ begin
 
     // current device is no input device -> skip
     if (channelCnt <= 0) then
-      writeln('channelCnt <= 0');
+      write('channelCnt <= 0: ');
+      writeln(channelCnt);
       continue;
 
     paDevice := TPortaudioInputDevice.Create();

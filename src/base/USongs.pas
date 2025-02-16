@@ -900,11 +900,29 @@ begin
     // Copy last word
     WordArray[High(WordArray)] := FilterStr;
 
+
     for I := 0 to High(Song) do
     begin
       if not Song[i].Main then
       begin
-        TmpString := Song[I].ArtistASCII + ' ' + Song[i].TitleASCII + ' ' + Song[i].LanguageASCII + ' ' + Song[i].EditionASCII + ' ' + Song[i].GenreASCII + ' ' + IntToStr(Song[i].Year) + ' ' + Song[i].CreatorASCII; //+ ' ' + Song[i].Folder;
+        case Filter of
+          fltAll:
+            TmpString := Song[I].ArtistASCII + ' ' + Song[i].TitleASCII + ' ' + Song[i].LanguageASCII + ' ' + Song[i].EditionASCII + ' ' + Song[i].GenreASCII + ' ' + IntToStr(Song[i].Year) + ' ' + Song[i].CreatorASCII; //+ ' ' + Song[i].Folder;
+          fltTitle:
+            TmpString := Song[I].TitleASCII;
+          fltArtist:
+            TmpString := Song[I].ArtistASCII;
+          fltLanguage:
+            TmpString := Song[I].LanguageASCII;
+          fltEdition:
+            TmpString := Song[I].EditionASCII;
+          fltGenre:
+            TmpString := Song[I].GenreASCII;
+          fltYear:
+            TmpString := IntToStr(Song[I].Year);
+          fltCreator:
+            TmpString := Song[I].CreatorASCII;
+        end;
         Song[i].Visible := true;
         // Look for every searched word
         for J := 0 to High(WordArray) do

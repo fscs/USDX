@@ -151,25 +151,31 @@ begin
 
       SDLK_RIGHT:
         begin
-          Interaction := 1;
-          InteractInc;
-          if (Length(Button[0].Text[0].Text) > 0) then
+          if (SDL_GetModState and KMOD_LALT) = KMOD_LALT then
           begin
-            SetTextFound(CatSongs.SetFilter(Button[0].Text[0].Text, fSelectType));
-            ScreenSong.NextRandomSearchIdx := CatSongs.VisibleSongs;
+            Interaction := 1;
+            InteractInc;
+            if (Length(Button[0].Text[0].Text) > 0) then
+            begin
+              SetTextFound(CatSongs.SetFilter(Button[0].Text[0].Text, fSelectType));
+              ScreenSong.NextRandomSearchIdx := CatSongs.VisibleSongs;
+            end;
+            Interaction := 0;
           end;
-          Interaction := 0;
         end;
       SDLK_LEFT:
         begin
-          Interaction := 1;
-          InteractDec;
-          if (Length(Button[0].Text[0].Text) > 0) then
+          if (SDL_GetModState and KMOD_LALT) = KMOD_LALT then
           begin
-            SetTextFound(CatSongs.SetFilter(Button[0].Text[0].Text, fSelectType));
-            ScreenSong.NextRandomSearchIdx := CatSongs.VisibleSongs;
+            Interaction := 1;
+            InteractDec;
+            if (Length(Button[0].Text[0].Text) > 0) then
+            begin
+              SetTextFound(CatSongs.SetFilter(Button[0].Text[0].Text, fSelectType));
+              ScreenSong.NextRandomSearchIdx := CatSongs.VisibleSongs;
+            end;
+            Interaction := 0;
           end;
-          Interaction := 0;
         end;
     end;
   end;

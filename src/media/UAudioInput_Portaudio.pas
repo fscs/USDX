@@ -367,12 +367,14 @@ begin
 
     writeln('Detected AudioInputProcessor Device:');
     writeln(ConvertPaStringToUTF8(paDeviceInfo^.name));
+    writeln(channelCnt);
 
     // current device is no input device -> skip
     if (channelCnt <= 0) then
+    begin
       write('channelCnt <= 0: ');
-      writeln(channelCnt);
       continue;
+    end;
 
     paDevice := TPortaudioInputDevice.Create();
     AudioInputProcessor.DeviceList[deviceIndex] := paDevice;

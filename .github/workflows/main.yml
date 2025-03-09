@@ -5,9 +5,9 @@ on:
     branches:
       - master
   pull_request:
-  # Run every day at 5:40.
-  schedule:
-    - cron:  '40 5 * * *'
+  # (please dont) Run every day at 5:40.
+  # schedule:
+  # - cron:  '40 5 * * *'
 jobs:
   build_windows:
     name: Build for Windows

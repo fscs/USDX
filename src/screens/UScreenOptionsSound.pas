@@ -170,7 +170,7 @@ begin
 
   Theme.OptionsSound.SelectSlideMusicAutoGain.showArrows := true;
   Theme.OptionsSound.SelectSlideMusicAutoGain.oneItemOnly := true;
-  AddSelectSlide(Theme.OptionsSound.SelectSlideMusicAutoGain, Ini.MusicAutoGain, IMusicAutoGainTranslated);
+  AddSelectSlide(Theme.OptionsSound.SelectSlideMusicAutoGain, Ini.ReplayGain, IReplayGainTranslated);
 
   Theme.OptionsSound.SelectSlidePreviewVolume.showArrows := true;
   Theme.OptionsSound.SelectSlidePreviewVolume.oneItemOnly := true;

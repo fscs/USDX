@@ -87,6 +87,9 @@ const
   //  * it should be possible to play with 5 players [without duplicating a lot of code]
   //  * there might be a valid usecase for 0 players
   IMaxPlayerCount = 12;
+  // Switch colors for players 2 and 4, since player 2 line color is used
+  // for the second part in duet, and yellow (4) looks better than red (2)
+  DefaultPlayerColors: array[0..IMaxPlayerCount-1] of integer = (1, 4, 3, 2, 5, 6, 7, 8, 9, 10, 11, 12);
   IPlayers:     array[0..4] of UTF8String = ('1', '2', '3', '4', '6');
   IPlayersVals: array[0..4] of integer    = ( 1 ,  2 ,  3 ,  4 ,  6 );
 
@@ -107,6 +110,7 @@ type
           IniSection: string; IniProperty: string; Default: integer; CaseInsensitive: boolean = false): integer; overload;
       function ReadArrayIndex(const SearchArray: array of UTF8String; IniFile: TCustomIniFile;
           IniSection: string; IniProperty: string; Default: integer; DefaultValue: UTF8String; CaseInsensitive: boolean = false): integer; overload;
+      function InitializePianoKeyArray(const Values: array of Cardinal): TPianoKeyArray;
 
       procedure LoadInputDeviceCfg(IniFile: TMemIniFile);
       procedure SaveInputDeviceCfg(IniFile: TIniFile);
@@ -178,8 +182,8 @@ type
       ThresholdIndex: integer;
       AudioOutputBufferSizeIndex: integer;
       VoicePassthrough: integer;
-      MusicAutoGain:  integer;
       SoundFont:      string;
+      ReplayGain:     integer;
 
       SyncTo: integer;
 
@@ -277,6 +281,8 @@ type
       JukeboxNextLineOtherOColorG: integer;
       JukeboxNextLineOtherOColorB: integer;
 
+      PianoKeysLow: TPianoKeyArray;
+      PianoKeysHigh: TPianoKeyArray;
 
       // default encoding for texts (lyrics, song-name, ...)
       DefaultEncoding: TEncoding;
@@ -374,15 +380,12 @@ const
   IClickAssist:      array[0..1] of UTF8String  = ('Off', 'On');
   IBeatClick:        array[0..1] of UTF8String  = ('Off', 'On');
   ISavePlayback:     array[0..1] of UTF8String  = ('Off', 'On');
+  IReplayGain:       array[0..1] of UTF8String  = ('Off', 'On');
 
   IThreshold:        array[0..7] of UTF8String  = ('5%', '10%', '15%', '20%', '25%', '30%', '40%', '60%');
   IThresholdVals:    array[0..7] of single      = (0.05, 0.10, 0.15,  0.20,  0.25,  0.30,  0.40,  0.60);
 
   IVoicePassthrough: array[0..1] of UTF8String  = ('Off', 'On');
-  
-  IMusicAutoGain:        array[0..3] of UTF8String  = ('Off', 'Soft', 'Medium', 'Hard');
-  IMusicAutoGainVals:    array[0..3] of integer  = (-1, 0, 1, 2);
-
 
 const
   ISyncTo: array[0..2] of UTF8String  = ('Music', 'Lyrics', 'Off');
@@ -502,11 +505,11 @@ var
 
   IClickAssistTranslated:      array[0..1] of UTF8String  = ('Off', 'On');
   IBeatClickTranslated:        array[0..1] of UTF8String  = ('Off', 'On');
+  IReplayGainTranslated:       array[0..1] of UTF8String  = ('Off', 'On');
+
   ISavePlaybackTranslated:     array[0..1] of UTF8String  = ('Off', 'On');
 
   IVoicePassthroughTranslated: array[0..1] of UTF8String  = ('Off', 'On');
-  
-  IMusicAutoGainTranslated: array[0..3] of UTF8String  = ('Off', 'Soft', 'Medium', 'Hard');
 
   ISyncToTranslated:           array[0..2] of UTF8String  = ('Music', 'Lyrics', 'Off');
 
@@ -686,16 +689,14 @@ begin
   IBeatClickTranslated[0]             := ULanguage.Language.Translate('OPTION_VALUE_OFF');
   IBeatClickTranslated[1]             := ULanguage.Language.Translate('OPTION_VALUE_ON');
 
+  IReplayGainTranslated[0]            := ULanguage.Language.Translate('OPTION_VALUE_OFF');
+  IReplayGainTranslated[1]            := ULanguage.Language.Translate('OPTION_VALUE_ON');
+
   ISavePlaybackTranslated[0]          := ULanguage.Language.Translate('OPTION_VALUE_OFF');
   ISavePlaybackTranslated[1]          := ULanguage.Language.Translate('OPTION_VALUE_ON');
 
   IVoicePassthroughTranslated[0]      := ULanguage.Language.Translate('OPTION_VALUE_OFF');
   IVoicePassthroughTranslated[1]      := ULanguage.Language.Translate('OPTION_VALUE_ON');
-
-  IMusicAutoGainTranslated[0]      := ULanguage.Language.Translate('OPTION_VALUE_OFF');
-  IMusicAutoGainTranslated[1]      := ULanguage.Language.Translate('OPTION_VALUE_GAIN_SOFT');
-  IMusicAutoGainTranslated[2]      := ULanguage.Language.Translate('OPTION_VALUE_GAIN_MEDIUM');
-  IMusicAutoGainTranslated[3]      := ULanguage.Language.Translate('OPTION_VALUE_GAIN_HARD');
 
   ISyncToTranslated[Ord(stMusic)]     := ULanguage.Language.Translate('OPTION_VALUE_MUSIC');
   ISyncToTranslated[Ord(stLyrics)]    := ULanguage.Language.Translate('OPTION_VALUE_LYRICS');
@@ -1387,6 +1388,15 @@ begin
   Depth := ReadArrayIndex(IDepth, IniFile, 'Graphics', 'Depth', IGNORE_INDEX, '32 bit');
 end;
 
+function TIni.InitializePianoKeyArray(const Values: array of Cardinal): TPianoKeyArray;
+var
+  i: Integer;
+begin
+  SetLength(Result, Length(Values));
+  for i := Low(Values) to High(Values) do
+    Result[i] := Values[i];
+end;
+
 procedure TIni.Load();
 var
   IniFile: TMemIniFile;
@@ -1394,6 +1404,10 @@ var
   IShowWebScore: array of UTF8String;
   HexColor: string;
   Col: TRGB;
+  KeysLow: string;
+  KeysHigh: string;
+  ReadPianoKeysLow: TPianoKeyArray;
+  ReadPianoKeysHigh: TPianoKeyArray;
 begin
   LoadFontFamilyNames;
   ILyricsFont := FontFamilyNames;
@@ -1414,17 +1428,12 @@ begin
     // Name
     Name[I] := IniFile.ReadString('Name', 'P'+IntToStr(I+1), 'Player'+IntToStr(I+1));
     // Color Player
-    PlayerColor[I] := IniFile.ReadInteger('PlayerColor', 'P'+IntToStr(I+1), I + 1);
+    PlayerColor[I] := IniFile.ReadInteger('PlayerColor', 'P'+IntToStr(I+1), DefaultPlayerColors[I]);
     // Avatar Player
     PlayerAvatar[I] := IniFile.ReadString('PlayerAvatar', 'P'+IntToStr(I+1), '');
     // Level Player
     PlayerLevel[I] := IniFile.ReadInteger('PlayerLevel', 'P'+IntToStr(I+1), 0);
   end;
-
-  // Switch colors for players 2 and 4, since player 2 line color is used
-  // for the second part in duet, and yellow (4) looks better than red (2)
-  PlayerColor[1] := IniFile.ReadInteger('PlayerColor', 'P'+IntToStr(I+1), 4);
-  PlayerColor[3] := IniFile.ReadInteger('PlayerColor', 'P'+IntToStr(I+1), 2);
 
   // Color Team
   for I := 0 to 2 do
@@ -1531,15 +1540,15 @@ begin
   //Preview Volume
   PreviewVolume := ReadArrayIndex(IPreviewVolume, IniFile, 'Sound', 'PreviewVolume', 5);
 
+  // ReplayGain
+  ReplayGain := ReadArrayIndex(IReplayGain, IniFile, 'Sound', 'ReplayGain', 0);
+
   //Preview Fading
   PreviewFading := ReadArrayIndex(IPreviewFading, IniFile, 'Sound', 'PreviewFading', 3);
 
   //AudioRepeat aka VoicePassthrough
   VoicePassthrough := ReadArrayIndex(IVoicePassthrough, IniFile, 'Sound', 'VoicePassthrough', 0);
   
-  // ReplayGain aka MusicAutoGain
-  MusicAutoGain := ReadArrayIndex(IMusicAutoGain, IniFile, 'Sound', 'MusicAutoGain', 0);
-
   SoundFont := IniFile.ReadString('Sound', 'SoundFont', '');
 
   // Lyrics Font
@@ -1601,7 +1610,7 @@ begin
   SingScores := ReadArrayIndex(ISingScores, IniFile, 'Advanced', 'SingScores', IGNORE_INDEX, 'On');
 
   // TopScores
-  TopScores := ReadArrayIndex(ITopScores, IniFile, 'Advanced', 'TopScores', IGNORE_INDEX, 'All');
+  TopScores := ReadArrayIndex(ITopScores, IniFile, 'Advanced', 'TopScores', IGNORE_INDEX, 'Player');
 
   // SyncTo
   SyncTo := ReadArrayIndex(ISyncTo, IniFile, 'Advanced', 'SyncTo', Ord(stMusic));
@@ -1729,6 +1738,20 @@ begin
     Ini.JukeboxNextLineOtherOColorB := Round(Col.B);
   end;
 
+  // default values
+  PianoKeysLow := InitializePianoKeyArray([60, 97, 121, 115, 120, 100, 99, 118, 103, 98, 104, 110, 109, 107, 44, 108, 46, 246, 45]);
+  PianoKeysHigh := InitializePianoKeyArray([49, 113, 50, 119, 51, 101, 114, 53, 116, 54, 122, 117, 56, 105, 57, 111, 48, 112, 252, 96, 43]);
+  // read from config if available
+  KeysLow := IniFile.ReadString('KeyBindings', 'PianoKeysLow', '');
+  KeysHigh := IniFile.ReadString('KeyBindings', 'PianoKeysHigh', '');
+  ReadPianoKeysLow := SplitStringToIntArray(KeysLow);
+  ReadPianoKeysHigh := SplitStringToIntArray(KeysHigh);
+  // only use config if it matches the expected lengths
+  if Length(ReadPianoKeysLow) = 19 then
+    PianoKeysLow := ReadPianoKeysLow;
+  if Length(ReadPianoKeysHigh) = 21 then
+    PianoKeysHigh := ReadPianoKeysHigh;
+
   LoadPaths(IniFile);
 
   TranslateOptionValues;
@@ -1833,6 +1856,9 @@ begin
     // BeatClick
     IniFile.WriteString('Sound', 'BeatClick', IBeatClick[BeatClick]);
 
+    // ReplayGain
+    IniFile.WriteString('Sound', 'ReplayGain', IReplayGain[ReplayGain]);
+
     // AudioOutputBufferSize
     IniFile.WriteString('Sound', 'AudioOutputBufferSize', IAudioOutputBufferSize[AudioOutputBufferSizeIndex]);
 
@@ -1850,9 +1876,6 @@ begin
 
     // VoicePasstrough
     IniFile.WriteString('Sound', 'VoicePassthrough', IVoicePassthrough[VoicePassthrough]);
-
-    // MusicAutoGain
-    IniFile.WriteString('Sound', 'MusicAutoGain', IMusicAutoGain[MusicAutoGain]);
 
     // Lyrics Font
     IniFile.WriteString('Lyrics', 'LyricsFont', ILyricsFont[LyricsFont]);
@@ -1995,6 +2018,9 @@ begin
       HexColor := RGBToHex(JukeboxNextLineOtherOColorR, JukeboxNextLineOtherOColorG, JukeboxNextLineOtherOColorB);
 
     IniFile.WriteString('Jukebox', 'NextLineOColor', HexColor);
+
+    IniFile.WriteString('KeyBindings', 'PianoKeysLow', MergeIntArrayToString(PianoKeysLow));
+    IniFile.WriteString('KeyBindings', 'PianoKeysHigh', MergeIntArrayToString(PianoKeysHigh));
 
     IniFile.Free;
 

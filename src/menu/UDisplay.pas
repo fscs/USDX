@@ -265,12 +265,6 @@ begin
   for S := 1 to Screens do
   begin
     ScreenAct := S;
-
-    //if Screens = 1 then ScreenX := 0;
-    //if (Screens = 2) and (S = 1) then ScreenX := -1;
-    //if (Screens = 2) and (S = 2) then ScreenX := 1;
-    ScreenX := 0;
-
     glViewPort((S-1) * ScreenW div Screens, 0, ScreenW div Screens, ScreenH);
 
     // popup check was successful... move on
@@ -844,10 +838,9 @@ begin
   SetFontPos(695, 0);
   glPrint ('FPS: ' + InttoStr(LastFPS));
 
-  // muffins
   SetFontPos(695, 13);
   glColor4f(0.8, 0.5, 0.2, 1);
-  glPrint ('Muffins!');
+  glPrint ('Game.Debug');
 
   glColor4f(1, 1, 1, 1);
 end;

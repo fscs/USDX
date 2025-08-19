@@ -73,7 +73,8 @@ type
     fltEdition,
     fltGenre,
     fltYear,
-    fltCreator
+    fltCreator,
+    fltTags
   );
 
   TBPM = record
@@ -278,18 +279,22 @@ begin
   Iter := FileSystem.FileFind(Dir.Append('*'), faAnyFile);
   while (Iter.HasNext) do
   begin
+    // the debug statements in this function have exactly the same message length before it prints the path
     FileInfo := Iter.Next;
     FileName := FileInfo.Name;
     if ((FileInfo.Attr and faDirectory) <> 0) then
     begin
-      if Recursive and (not FileName.Equals('.')) and (not FileName.Equals('..')) and (not FileName.Equals('')) then
+      if Recursive and (not FileName.Equals('.')) and (not FileName.Equals('..')) and (not FileName.Equals('')) then begin
+        Log.LogDebug('Recursing: ' + Dir.Append(FileName).ToWide, 'TSongs.FindFilesByExtension');
         FindFilesByExtension(Dir.Append(FileName), Ext, true, Files);
+      end;
     end
     else
     begin
       // do not load files which either have wrong extension or start with a point
       if (Ext.Equals(FileName.GetExtension(), true) and not (FileName.ToUTF8()[1] = '.')) then
       begin
+        Log.LogDebug('Found file ' + Dir.Append(FileName).ToWide, 'TSongs.FindFilesByExtension');
         SetLength(Files, Length(Files)+1);
         Files[High(Files)] := Dir.Append(FileName);
       end;
@@ -305,6 +310,7 @@ var
   //CloneSong: TSong;
   Extension: IPath;
 begin
+  Log.LogDebug('Searching directory ' + Dir.ToWide + ' for txt files', 'TSongs.BrowseTXTFiles');
   SetLength(Files, 0);
   Extension := Path('.txt');
   FindFilesByExtension(Dir, Extension, true, Files);
@@ -907,7 +913,7 @@ begin
       begin
         case Filter of
           fltAll:
-            TmpString := Song[I].ArtistASCII + ' ' + Song[i].TitleASCII + ' ' + Song[i].LanguageASCII + ' ' + Song[i].EditionASCII + ' ' + Song[i].GenreASCII + ' ' + IntToStr(Song[i].Year) + ' ' + Song[i].CreatorASCII; //+ ' ' + Song[i].Folder;
+            TmpString := Song[I].ArtistASCII + ' ' + Song[i].TitleASCII + ' ' + Song[i].LanguageASCII + ' ' + Song[i].EditionASCII + ' ' + Song[i].GenreASCII + ' ' + IntToStr(Song[i].Year) + ' ' + Song[i].CreatorASCII + ' ' + Song[i].TagsASCII; //+ ' ' + Song[i].Folder;
           fltTitle:
             TmpString := Song[I].TitleASCII;
           fltArtist:
@@ -922,6 +928,8 @@ begin
             TmpString := IntToStr(Song[I].Year);
           fltCreator:
             TmpString := Song[I].CreatorASCII;
+          fltTags:
+            TmpString := Song[i].TagsASCII;
         end;
         Song[i].Visible := true;
         // Look for every searched word

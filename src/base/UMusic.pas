@@ -230,24 +230,6 @@ type
   end;
 
 type
-  TSoundFX = class
-    public
-      EngineData: Pointer; // can be used for engine-specific data
-      procedure Init(); virtual; abstract;
-      procedure Removed(); virtual; abstract;
-
-      class function CanEnable: boolean; virtual; abstract;
-
-      function GetType: DWORD; virtual; abstract;
-      function GetPriority: LongInt; virtual; abstract;
-      function GetName: string; virtual; abstract;
-
-  end;
-  
-  TReplayGain = class(TSoundFX)
-  end;
-
-type
   TAudioProcessingStream = class;
   TOnCloseHandler = procedure(Stream: TAudioProcessingStream);
 
@@ -281,11 +263,18 @@ type
   end;
 
   TAudioSourceStream = class(TAudioProcessingStream)
+    private
+      RG: single;
+
     protected
       function IsEOF(): boolean;            virtual; abstract;
       function IsError(): boolean;          virtual; abstract;
+      procedure SetReplayGain(const GainTag: AnsiString; const PeakTag: AnsiString);
+      procedure SetReplayGainR128(const R128Tag: AnsiString);
     public
+      constructor Create();
       function ReadData(Buffer: PByte; BufferSize: integer): integer; virtual; abstract;
+      function GetReplayGain(): single;
 
       property EOF: boolean read IsEOF;
       property Error: boolean read IsError;
@@ -309,6 +298,8 @@ type
       AvgSyncDiff: double;  //** average difference between stream and sync clock
       SyncSource: TSyncSource;
       SourceStream: TAudioSourceStream;
+      RG: single;
+      RGEnabled: boolean;
 
       function GetLatency(): double; virtual; abstract;
       function GetStatus(): TStreamStatus;  virtual; abstract;
@@ -317,6 +308,8 @@ type
       function Synchronize(BufferSize: integer; FormatInfo: TAudioFormatInfo): integer;
       procedure FillBufferWithFrame(Buffer: PByteArray; BufferSize: integer; Frame: PByteArray; FrameSize: integer);
     public
+      constructor Create();
+
       (**
        * Opens a SourceStream for playback.
        * Note that the caller (not the TAudioPlaybackStream) is responsible to
@@ -325,7 +318,7 @@ type
        * guarantees to deliver this method's SourceStream parameter to
        * the OnClose-handler. Freeing SourceStream at OnClose is allowed.
        *)
-      function Open(SourceStream: TAudioSourceStream): boolean; virtual; abstract;
+      function Open(SourceStream: TAudioSourceStream): boolean; virtual;
 
       procedure Play();                     virtual; abstract;
       procedure Pause();                    virtual; abstract;
@@ -336,14 +329,17 @@ type
       procedure GetFFTData(var data: TFFTData);          virtual; abstract;
       function GetPCMData(var data: TPCMData): Cardinal; virtual; abstract;
 
-      procedure AddSoundFX(FX: TSoundFX);    virtual; abstract;
-      procedure RemoveSoundFX(FX: TSoundFX); virtual; abstract;
-
       procedure SetSyncSource(SyncSource: TSyncSource);
       function GetSourceStream(): TAudioSourceStream;
 
+      function GetReplayGainAdjustment(): single;
+      procedure SetReplayGainEnabled(RGEnabled: boolean); virtual;
+      function GetReplayGainEnabled(): boolean;
+
       property Status: TStreamStatus read GetStatus;
       property Volume: single read GetVolume write SetVolume;
+      property ReplayGainAdjustment: single read GetReplayGainAdjustment;
+      property ReplayGainEnabled: boolean read GetReplayGainEnabled write SetReplayGainEnabled;
   end;
 
   TAudioDecodeStream = class(TAudioSourceStream)
@@ -354,6 +350,7 @@ type
       FormatInfo: TAudioFormatInfo;
       ChannelMap: integer;
     public
+      constructor Create;
       destructor Destroy; override;
 
       function Open(ChannelMap: integer; FormatInfo: TAudioFormatInfo): boolean; virtual;
@@ -473,10 +470,11 @@ type
       function  Finished: boolean;
       function  Length: real;
 
-      function Open(const Filename: IPath): boolean; // true if succeed
+      function Open(const Filename: IPath; const FilenameKaraoke: IPath): boolean; // true if succeed
       procedure Close;
 
       procedure Play;
+      procedure ToggleKaraoke;
       procedure Pause;
       procedure Stop;
 
@@ -587,7 +585,7 @@ const
     '%SOUNDPATH%/menu swoosh.mp3',                  // Swoosh
     '%SOUNDPATH%/select music change music 50.mp3', // Change
     '%SOUNDPATH%/option change col.mp3',            // Option
-    '%SOUNDPATH%/rimshot022b.mp3'                   // Click
+    '%SOUNDPATH%/rimshot022b.wav'                   // Click
     {
     '%SOUNDPATH%/bassdrumhard076b.mp3',             // Drum (unused)
     '%SOUNDPATH%/hihatclosed068b.mp3',              // Hihat (unused)
@@ -659,6 +657,7 @@ uses
   UIni,
   UNote,
   UCommandLine,
+  UCommon,
   URecord,
   ULog,
   UPathUtils;
@@ -990,7 +989,7 @@ begin
   Swoosh  := AudioPlayback.OpenSound(SoundPath.Append('menu swoosh.mp3'));
   Change  := AudioPlayback.OpenSound(SoundPath.Append('select music change music 50.mp3'));
   Option  := AudioPlayback.OpenSound(SoundPath.Append('option change col.mp3'));
-  Click   := AudioPlayback.OpenSound(SoundPath.Append('rimshot022b.mp3'));
+  Click   := AudioPlayback.OpenSound(SoundPath.Append('rimshot022b.wav'));
   Applause:= AudioPlayback.OpenSound(SoundPath.Append('Applause.mp3'));
 
   BGMusic := AudioPlayback.OpenSound(SoundPath.Append('background track.mp3'));
@@ -1075,8 +1074,101 @@ begin
   end;
 end;
 
+{ TAudioSourceStream }
+
+constructor TAudioSourceStream.Create();
+begin
+  RG := 1.0;
+end;
+
+procedure TAudioSourceStream.SetReplayGain(const GainTag: AnsiString; const PeakTag: AnsiString);
+var
+  GainStr: AnsiString;
+  GainValDb: single;
+  PeakVal: single;
+  PeakValDb: single;
+  GainTagTokens: TStringDynArray;
+begin
+    GainTagTokens := SplitString(GainTag, 0); //Split string by space to remove 'dB'
+    if (System.Length(GainTagTokens) > 0) then
+    begin
+      try
+        GainStr := GainTagTokens[0];
+
+        // Some ReplayGain scanners prefix positive gains with a + character,
+        // even though this violates the ReplayGain standard. Let's handle this
+        // case anyways
+        if (GainStr.StartsWith('+')) then
+          GainStr := GainStr.Substring(1);
+        GainValDb := StrToFloat(GainStr);
+
+        // If the file has a replaygain peak tag, use it for clipping protection
+        if (not PeakTag.IsEmpty()) then
+        begin
+          PeakVal := StrToFloat(PeakTag);
+          if (PeakVal > 0.0) then
+          begin
+            PeakValDb := 20.0 * log10(PeakVal);
+            GainValDb := Min(GainValDb, 0.0 - PeakValDb);
+          end;
+        end;
+
+        RG := power(10.0, (GainValDb / 20.0));
+        Log.LogInfo('Using ReplayGain adjustment: ' + FormatFloat('0.00', GainValDb)
+                    + ' dB (' + FormatFloat('0.000', RG) + ')', 'TAudioSourceStream.SetReplayGain');
+      except
+        Log.LogError('Failed to parse ReplayGain tag');
+      end;
+    end;
+end;
+
+
+(*  Opus files support another loudness normalization scheme that is completely
+ *  separate from ReplayGain. Values are stored in the 'R128_TRACK_GAIN' tag,
+ *  encoded as a Q7.8 fixed-point number, and there is no peak information.
+ *  To obtain the gain in decibels, divide by 256. See RFC 7845 for more information:
+ *
+ *  https://datatracker.ietf.org/doc/html/rfc7845
+ *)
+procedure TAudioSourceStream.SetReplayGainR128(const R128Tag: AnsiString);
+var
+  GainValDb: single;
+begin
+  try
+
+    // The R128_TRACK_GAIN tags are referenced to -23 LUFS, but ReplayGain tags are
+    // referenced to -18 LUFS. This means that Opus files will play back 5 dB quieter
+    // than non-Opus files we apply the gain directly. So we add a 5 dB preamp value to
+    // the R128 tag to ensure that Opus files will play back at the same volume as non-Opus files
+    GainValDb := (StrToFloat(R128Tag) / 256.0) + 5.0;
+    RG := power(10.0, (GainValDb / 20.0));
+    Log.LogInfo('Using ReplayGain adjustment: ' + FormatFloat('0.00', GainValDb)
+                + ' dB (' + FormatFloat('0.000', RG) + ')', 'TAudioSourceStream.SetReplayGainR128');
+  except
+    Log.LogError('Failed to parse R128 tag');
+  end;
+end;
+
+function TAudioSourceStream.GetReplayGain(): single;
+begin
+  Result := RG;
+end;
 
 { TAudioPlaybackStream }
+
+constructor TAudioPlaybackStream.Create();
+begin
+  RG := 1.0;
+  RGEnabled := false;
+  inherited;
+end;
+
+function TAudioPlaybackStream.Open(SourceStream: TAudioSourceStream): boolean;
+begin
+  if (Ini.ReplayGain = 1) then
+    RG := SourceStream.GetReplayGain();
+  Result := true;
+end;
 
 function TAudioPlaybackStream.GetSourceStream(): TAudioSourceStream;
 begin
@@ -1209,7 +1301,30 @@ begin
     Move(Frame[0], Buffer[i*FrameSize], FrameSize);
 end;
 
+function TAudioPlaybackStream.GetReplayGainAdjustment(): single;
+begin
+  if (RGEnabled) then
+    Result := RG
+  else
+    Result := 1.0;
+end;
+
+function TAudioPlaybackStream.GetReplayGainEnabled(): boolean;
+begin
+  Result := RGEnabled;
+end;
+
+procedure TAudioPlaybackStream.SetReplayGainEnabled(RGEnabled: boolean);
+begin
+  self.RGEnabled := RGEnabled;
+end;
+
 { TAudioVoiceStream }
+
+constructor TAudioVoiceStream.Create();
+begin
+  inherited;
+end;
 
 function TAudioVoiceStream.Open(ChannelMap: integer; FormatInfo: TAudioFormatInfo): boolean;
 begin

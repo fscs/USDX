@@ -42,15 +42,14 @@ uses
   SysUtils;
 
 type
-  FReplayGain = class of TReplayGain;
 
   TAudioPlaybackBase = class(TInterfacedObject, IAudioPlayback)
     protected
 
       OutputDeviceList: TAudioOutputDeviceList;
       MusicStream: TAudioPlaybackStream;
-
-      IReplayGain: FReplayGain;
+      KaraokeMusicStream: TAudioPlaybackStream;
+      KaraokeMode: boolean;
 
       function CreatePlaybackStream(): TAudioPlaybackStream; virtual; abstract;
       procedure ClearOutputDeviceList();
@@ -64,11 +63,12 @@ type
       constructor Create(); virtual;
       function GetName: string; virtual; abstract;
 
-      function Open(const Filename: IPath): boolean; // true if succeed
+      function Open(const Filename: IPath; const FilenameKaraoke: IPath): boolean; // true if succeed
       procedure Close;
 
       procedure Play;
       procedure Pause;
+      procedure ToggleKaraoke;
       procedure Stop;
       procedure FadeIn(Time: real; TargetVolume: single);
       procedure Fade(Time: real; TargetVolume: single);
@@ -135,6 +135,7 @@ uses
 constructor TAudioPlaybackBase.Create();
 begin
   inherited;
+  KaraokeMode := false;
 end;
 
 { TAudioPlaybackBase }
@@ -142,14 +143,16 @@ end;
 function TAudioPlaybackBase.FinalizePlayback: boolean;
 begin
   FreeAndNil(MusicStream);
+  FreeAndNil(KaraokeMusicStream);
   ClearOutputDeviceList();
   Result := true;
 end;
 
-function TAudioPlaybackBase.Open(const Filename: IPath): boolean;
+function TAudioPlaybackBase.Open(const Filename: IPath; const FilenameKaraoke: IPath): boolean;
 begin
   // free old MusicStream
   MusicStream.Free;
+  KaraokeMusicStream.Free;
 
   MusicStream := OpenStream(Filename);
   if not assigned(MusicStream) then
@@ -157,8 +160,18 @@ begin
     Result := false;
     Exit;
   end;
+  if (Ini.ReplayGain = 1) then
+    MusicStream.ReplayGainEnabled := true;
 
-  if assigned(IReplayGain) and IReplayGain.CanEnable then MusicStream.AddSoundFX(IReplayGain.Create());
+  if assigned(FilenameKaraoke) then
+    KaraokeMusicStream := OpenStream(FilenameKaraoke);
+
+  KaraokeMode := false;
+  if assigned(KaraokeMusicStream) then begin
+    KaraokeMusicStream.Volume := 0;
+    if (Ini.ReplayGain = 1) then
+      KaraokeMusicStream.ReplayGainEnabled := true;
+  end;
 
   Result := true;
 end;
@@ -166,6 +179,7 @@ end;
 procedure TAudioPlaybackBase.Close;
 begin
   FreeAndNil(MusicStream);
+  FreeAndNil(KaraokeMusicStream);
 end;
 
 function TAudioPlaybackBase.OpenDecodeStream(const Filename: IPath): TAudioDecodeStream;
@@ -202,12 +216,12 @@ var
 begin
   Result := nil;
 
-  //Log.LogStatus('Loading Sound: "' + Filename + '"', 'TAudioPlayback_Bass.OpenStream');
+  //Log.LogStatus('Loading Sound: "' + Filename + '"', 'TAudioPlayback_Base.OpenStream');
 
   DecodeStream := OpenDecodeStream(Filename);
   if (not assigned(DecodeStream)) then
   begin
-    Log.LogStatus('Could not open "' + Filename.ToNative + '"', 'TAudioPlayback_Bass.OpenStream');
+    Log.LogStatus('Could not open "' + Filename.ToNative + '"', 'TAudioPlayback_Base.OpenStream');
     Exit;
   end;
 
@@ -251,18 +265,38 @@ procedure TAudioPlaybackBase.Play;
 begin
   if assigned(MusicStream) then
     MusicStream.Play();
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Play();
 end;
 
 procedure TAudioPlaybackBase.Pause;
 begin
   if assigned(MusicStream) then
     MusicStream.Pause();
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Pause();
+end;
+
+procedure TAudioPlaybackBase.ToggleKaraoke;
+begin
+  KaraokeMode := not KaraokeMode;
+  if KaraokeMode and assigned(KaraokeMusicStream) and assigned(MusicStream) then begin
+    KaraokeMusicStream.Volume := MusicStream.Volume;
+    MusicStream.Volume := 0;
+  end;
+  if (not KaraokeMode) and assigned(KaraokeMusicStream) and assigned(MusicStream) then begin
+    MusicStream.Volume := KaraokeMusicStream.Volume;
+    KaraokeMusicStream.Volume := 0;
+  end;
 end;
 
 procedure TAudioPlaybackBase.Stop;
 begin
   if assigned(MusicStream) then
     MusicStream.Stop();
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Stop();
+  KaraokeMode := false;
 end;
 
 function TAudioPlaybackBase.Length: real;
@@ -289,12 +323,16 @@ procedure TAudioPlaybackBase.SetPosition(Time: real);
 begin
   if assigned(MusicStream) then
     MusicStream.Position := Time;
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Position := Time;
 end;
 
 procedure TAudioPlaybackBase.SetSyncSource(SyncSource: TSyncSource);
 begin
   if assigned(MusicStream) then
     MusicStream.SetSyncSource(SyncSource);
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.SetSyncSource(SyncSource);
 end;
 
 procedure TAudioPlaybackBase.Rewind;
@@ -312,26 +350,34 @@ end;
 
 procedure TAudioPlaybackBase.SetVolume(Volume: single);
 begin
-  if assigned(MusicStream) then
+  if (not KaraokeMode) and assigned(MusicStream) then
     MusicStream.Volume := Volume;
+  if KaraokeMode and assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Volume := Volume;
 end;
 
 procedure TAudioPlaybackBase.FadeIn(Time: real; TargetVolume: single);
 begin
-  if assigned(MusicStream) then
+  if (not KaraokeMode) and assigned(MusicStream) then
     MusicStream.FadeIn(Time, TargetVolume);
+  if KaraokeMode and assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.FadeIn(Time, TargetVolume);
 end;
 
 procedure TAudioPlaybackBase.Fade(Time: real; TargetVolume: single);
 begin
-  if assigned(MusicStream) then
+  if (not KaraokeMode) and assigned(MusicStream) then
     MusicStream.Fade(Time, TargetVolume);
+  if KaraokeMode and assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Fade(Time, TargetVolume);
 end;
 
 procedure TAudioPlaybackBase.SetLoop(Enabled: boolean);
 begin
   if assigned(MusicStream) then
     MusicStream.Loop := Enabled;
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Loop := Enabled;
 end;
 
 // Equalizer
@@ -347,8 +393,10 @@ end;
  *}
 function TAudioPlaybackBase.GetPCMData(var data: TPCMData): Cardinal;
 begin
-  if assigned(MusicStream) then
+  if  (not KaraokeMode) and assigned(MusicStream) then
     Result := MusicStream.GetPCMData(data)
+  else if  KaraokeMode and assigned(KaraokeMusicStream) then
+    Result := KaraokeMusicStream.GetPCMData(data)
   else
     Result := 0;
 end;

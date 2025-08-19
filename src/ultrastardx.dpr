@@ -75,7 +75,6 @@ uses
 
   {$IFDEF UseBass}
   BASS                   in 'lib\bass\delphi\bass.pas',
-  BASS_FX                in 'lib\bass_fx\bass_fx.pas',
   UAudioCore_Bass        in 'media\UAudioCore_Bass.pas',
   {$ENDIF}
   {$IFDEF UsePortaudio}
@@ -266,10 +265,6 @@ uses
 {$ENDIF}
 {$IFDEF UseBASSInput}
   UAudioInput_Bass          in 'media\UAudioInput_Bass.pas',
-{$ENDIF}
-{$IFDEF UseBASSDecoder}
-  // prefer Bass to FFmpeg if possible
-  UAudioDecoder_Bass        in 'media\UAudioDecoder_Bass.pas',
 {$ENDIF}
 {$IFDEF UseBASSPlayback}
   UAudioPlayback_Bass       in 'media\UAudioPlayback_Bass.pas',

@@ -124,7 +124,7 @@ type
 
       OscilloscopeVisible: Boolean; //< shows or hides oscilloscope
       LyricsVisible:       Boolean; //< shows or hides lyrics
-      NotesVisible:        Integer; //< if bit[playernum] is set the notes for the specified player are visible. By default all players notes are visible
+      NotesVisible:        array [0..IMaxPlayerCount-1] of Boolean; //< if NotesVisible[playerIndex] is set the notes for the specified player are visible. By default all players notes are visible
       ScoresVisible:       Boolean; //< shows or hides scores
       AvatarsVisible:      Boolean; //< shows or hides avatars
       TimeBarVisible:      Boolean; //< shows or hides timebar
@@ -161,6 +161,7 @@ type
     FadeOut: boolean;
 
     procedure ClearSettings;
+    procedure AllNotesVisible(visible: boolean);
     procedure ApplySettings; //< applies changes of settings record
     procedure EndSong;
 
@@ -445,7 +446,13 @@ begin
           if (ScreenSong.Mode <> smNormal) and (ScreenSong.Mode <> smMedley) then
             Exit;
 
-          ScreenSing.Settings.NotesVisible := ifthen(ScreenSing.Settings.NotesVisible = 0, High(Integer), 0);
+          if (ScreenSing.Settings.NotesVisible[0]) then begin
+            // if first player is currently visible, set all players to not visible
+            AllNotesVisible(false);
+          end else begin
+            // else set all players to visible
+            AllNotesVisible(true);
+          end;
           Exit;
         end;
       end;
@@ -505,14 +512,20 @@ begin
           if (ScreenSong.Mode <> smNormal) and (ScreenSong.Mode <> smMedley) then
             Exit;
 
-          ScreenSing.Settings.NotesVisible        := ifthen(ScreenSing.Settings.NotesVisible = 0, High(Integer), 0);
+          if (ScreenSing.Settings.NotesVisible[0]) then begin
+            // if first player is currently visible, set all players to not visible
+            AllNotesVisible(false);
+          end else begin
+            // else set all players to visible
+            AllNotesVisible(true);
+          end;
           // synchronize show/hide of all other elements with NotesVisible
-          ScreenSing.Settings.LyricsVisible       := (ScreenSing.Settings.NotesVisible <> 0);
-          ScreenSing.Settings.ScoresVisible       := (ScreenSing.Settings.NotesVisible <> 0);
-          ScreenSing.Settings.AvatarsVisible      := (ScreenSing.Settings.NotesVisible <> 0);
-          ScreenSing.Settings.TimeBarVisible      := (ScreenSing.Settings.NotesVisible <> 0);
-          ScreenSing.Settings.InputVisible        := (ScreenSing.Settings.NotesVisible <> 0);
-          ScreenSing.Settings.OscilloscopeVisible := (ScreenSing.Settings.NotesVisible <> 0);
+          ScreenSing.Settings.LyricsVisible       := (ScreenSing.Settings.NotesVisible[0]);
+          ScreenSing.Settings.ScoresVisible       := (ScreenSing.Settings.NotesVisible[0]);
+          ScreenSing.Settings.AvatarsVisible      := (ScreenSing.Settings.NotesVisible[0]);
+          ScreenSing.Settings.TimeBarVisible      := (ScreenSing.Settings.NotesVisible[0]);
+          ScreenSing.Settings.InputVisible        := (ScreenSing.Settings.NotesVisible[0]);
+          ScreenSing.Settings.OscilloscopeVisible := (ScreenSing.Settings.NotesVisible[0]);
           Exit;
         end;
       end;
@@ -536,6 +549,11 @@ begin
       SDLK_SPACE:
       begin
         Pause;
+      end;
+
+      SDLK_K:
+      begin
+        AudioPlayback.ToggleKaraoke;
       end;
 
       SDLK_RIGHT:
@@ -857,7 +875,11 @@ begin
   PlayMidi := false;
   MidiFadeIn := false;
 
-  AudioPlayback.Open(CurrentSong.Path.Append(CurrentSong.Audio));
+  if (not Assigned(CurrentSong.Karaoke)) or (CurrentSong.Karaoke = PATH_NONE) then
+    AudioPlayback.Open(CurrentSong.Path.Append(CurrentSong.Audio), nil)
+  else
+    AudioPlayback.Open(CurrentSong.Path.Append(CurrentSong.Audio), CurrentSong.Path.Append(CurrentSong.Karaoke));
+
   if ScreenSong.Mode = smMedley then
     AudioPlayback.SetVolume(0.1)
   else
@@ -1265,13 +1287,22 @@ begin
   Settings.Finish := False;
   Settings.OscilloscopeVisible := Boolean(Ini.Oscilloscope);
   Settings.LyricsVisible := True;
-  Settings.NotesVisible := high(Integer);
+  AllNotesVisible(true);
   Settings.ScoresVisible := True;
   Settings.AvatarsVisible := True;
   Settings.TimeBarVisible := True;
   Settings.InputVisible := True;
   Settings.PlayerEnabled := high(Integer);
   Settings.SoundEnabled := True;
+end;
+
+procedure TScreenSingController.AllNotesVisible(visible: boolean);
+var
+  I: integer;
+begin
+  for I := 0 to High(ScreenSing.Settings.NotesVisible) do begin
+    ScreenSing.Settings.NotesVisible[I] := visible;
+  end;
 end;
 
 { applies changes of settings record }
@@ -1558,6 +1589,8 @@ begin
 
         SetLength(PlaylistMedley.Stats, len + 1);
         SetLength(PlaylistMedley.Stats[len].Player, num);
+        for I := 0 to num - 1 do
+          PlaylistMedley.Stats[len].Player[I].HighNote := -1;
 
         for J := 0 to len - 1 do
         begin

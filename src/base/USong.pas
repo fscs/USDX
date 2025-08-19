@@ -144,11 +144,13 @@ type
     Audio:      IPath;
     Background: IPath;
     Video:      IPath;
+    Karaoke:    IPath;
 
     // sorting methods
     Genre:      UTF8String;
     Edition:    UTF8String;
     Language:   UTF8String;
+    Tags:       UTF8String;
     Year:       Integer;
 
     Title:      UTF8String;
@@ -160,6 +162,7 @@ type
     LanguageASCII: UTF8String;
     EditionASCII:  UTF8String;
     GenreASCII:    UTF8String;
+    TagsASCII:     UTF8String;
     CreatorASCII:  UTF8String;
 
     Creator:    UTF8String;
@@ -379,6 +382,7 @@ begin
   Self.FileName := PATH_NONE();
   Self.Cover    := PATH_NONE();
   Self.Audio    := PATH_NONE();
+  Self.Karaoke  := PATH_NONE();
   Self.Background:= PATH_NONE();
   Self.Video    := PATH_NONE();
 end;
@@ -627,6 +631,7 @@ var
   CurLine:      RawByteString;
   LinePos:      integer;
   TrackIndex:   integer;
+  NoteIndex:    integer;
   Both:         boolean;
   CurrentTrack: integer; // P1: 0, P2: 1, (old duet format with binary player representation P1+P2: 2)
 
@@ -638,6 +643,8 @@ var
 
   I:            integer;
   NotesFound:   boolean;
+label
+  NextTrack;
 begin
   Result := false;
   LastError := '';
@@ -843,8 +850,22 @@ begin
 
   for TrackIndex := 0 to High(Tracks) do
   begin
-    if (High(Tracks[TrackIndex].Lines) >= 0) then
-      Tracks[TrackIndex].Lines[High(Tracks[TrackIndex].Lines)].LastLine := true;
+    if High(Tracks[Trackindex].Lines) < 0 then
+      continue;  // no lines in this track
+
+    Tracks[Trackindex].Lines[0].LastLine := True; // fallback to make sure at least one line is marked last line
+
+    // search backwards until we find the last line with a non-freestyle note
+    for LinePos := System.High(Tracks[Trackindex].Lines) downto 0 do
+      for NoteIndex := System.High(Tracks[Trackindex].Lines[LinePos].Notes) downto 0 do
+        if Tracks[Trackindex].Lines[LinePos].Notes[NoteIndex].NoteType <> ntFreestyle then
+        begin
+          Tracks[Trackindex].Lines[0].LastLine := False; // reset the fallback as we found the last line with a non-freestyle note
+          Tracks[Trackindex].Lines[LinePos].LastLine := True;
+          goto NextTrack;
+        end;
+
+    NextTrack: ;
   end;
 
   Result := true;
@@ -930,6 +951,29 @@ var
     else
     begin
       Log.LogError('Can''t find audio file in song: ' + DecodeStringUTF8(FullFileName, Encoding));
+    end;
+  end;
+
+  {**
+   * Reads all instances of a specified header and
+   * sets the variables for song filtering accordingly.
+   *}
+  procedure ParseMultivaluedFilterHeaders(const header: string; var field, asciiField: UTF8String);
+  var
+    value: string;
+    tempUtf8String: UTF8String;
+  begin
+    if (TagMap.TryGetData(header, value)) then
+    begin
+      TagMap.Remove(header);
+      DecodeStringUTF8(value, field, Encoding);
+      while TagMap.TryGetData(header, value) do
+      begin
+        TagMap.Remove(header);
+        DecodeStringUTF8(value, tempUtf8String, Encoding);
+        field := tempUtf8String + ',' + field;
+      end;
+      asciiField := LowerCase(TransliterateToASCII(field));
     end;
   end;
 
@@ -1084,35 +1128,31 @@ begin
     end;
 
     // Audio File
-    // The AUDIO header was introduced in format 1.1.0 and replaces MP3 (deprecated)
+    // The optional AUDIO header was introduced in format 1.0.0 and takes precendence over MP3 if it exists
     // For older format versions the audio file is found in the MP3 header
-    if self.FormatVersion.MinVersion(1,1,0) then
+    if self.FormatVersion.MinVersion(1,0,0) then
     begin
       if TagMap.TryGetData('AUDIO', Value) then
       begin
         RemoveTagsFromTagMap('AUDIO');
+        CheckAndSetAudioFile(Value);
         // If AUDIO is present MP3 should be ignored
-        if TagMap.IndexOf('MP3') > -1 then
+        if TagMap.TryGetData('MP3', Value) then
         begin
-          Log.LogInfo('The AUDIO header overwrites the MP3 header in file ' + FullFileName, 'TSong.ReadTXTHeader');
+          // If MP3 has a different value than AUDIO add an info message to logs
+          if not self.Audio.Equals(Value) then
+          begin
+             Log.LogInfo('The AUDIO header overwrites the MP3 header in file ' + FullFileName, 'TSong.ReadTXTHeader');
+          end;
           RemoveTagsFromTagMap('MP3', false);
         end;
-        CheckAndSetAudioFile(Value);
-      end
-      else
-      begin
-        Result := false;
-        Log.LogError('Missing AUDIO header (mandatory for format >= 1.1.0) ' + FullFileName);
-        Exit;
       end;
-    end
-    else
+    end;
+
+    if TagMap.TryGetData('MP3', Value) then
     begin
-      if TagMap.TryGetData('MP3', Value) then
-      begin
-        RemoveTagsFromTagMap('MP3');
-        CheckAndSetAudioFile(Value);
-      end;
+      RemoveTagsFromTagMap('MP3');
+      CheckAndSetAudioFile(Value);
     end;
 
     //Beats per Minute
@@ -1169,6 +1209,15 @@ begin
         Log.LogError('Can''t find video file in song: ' + FullFileName);
     end;
 
+    // Instrumental Audio
+    if (TagMap.TryGetData('INSTRUMENTAL', Value)) then
+    begin
+      RemoveTagsFromTagMap('INSTRUMENTAL');
+      EncFile := DecodeFilename(Value);
+      if (self.Path.Append(EncFile).IsFile) then
+        self.Karaoke := EncFile;
+    end;
+
     // Video Gap
     if (TagMap.TryGetData('VIDEOGAP', Value)) then
     begin
@@ -1177,35 +1226,21 @@ begin
     end;
 
     //Genre Sorting
-    if (TagMap.TryGetData('GENRE', Value)) then
-    begin
-      RemoveTagsFromTagMap('GENRE');
-      DecodeStringUTF8(Value, Genre, Encoding);
-      self.GenreASCII := LowerCase(TransliterateToASCII(Genre));
-    end;
+    ParseMultivaluedFilterHeaders('GENRE', self.Genre, self.GenreASCII);
 
     //Edition Sorting
-    if (TagMap.TryGetData('EDITION', Value)) then
-    begin
-      RemoveTagsFromTagMap('EDITION');
-      DecodeStringUTF8(Value, Edition, Encoding);
-      self.EditionASCII := LowerCase(TransliterateToASCII(Edition));
-    end;
+    ParseMultivaluedFilterHeaders('EDITION', self.Edition, self.EditionASCII);
 
     //Creator Tag
-    if (TagMap.TryGetData('CREATOR', Value)) then
-    begin
-      RemoveTagsFromTagMap('CREATOR');
-      DecodeStringUTF8(Value, Creator, Encoding);
-      self.CreatorASCII := LowerCase(TransliterateToASCII(Creator));
-    end;
+    ParseMultivaluedFilterHeaders('CREATOR', self.Creator, self.CreatorASCII);
 
     //Language Sorting
-    if (TagMap.TryGetData('LANGUAGE', Value)) then
+    ParseMultivaluedFilterHeaders('LANGUAGE', self.Language, self.LanguageASCII);
+
+    //Tags Sorting
+    if FormatVersion.MinVersion(1,0,0) then
     begin
-      RemoveTagsFromTagMap('LANGUAGE');
-      DecodeStringUTF8(Value, Language, Encoding);
-      self.LanguageASCII := LowerCase(TransliterateToASCII(Language));
+      ParseMultivaluedFilterHeaders('TAGS', self.Tags, self.TagsASCII);
     end;
 
     //Year Sorting
@@ -1758,6 +1793,7 @@ begin
   Edition  := 'Unknown';
   Language := 'Unknown';
   Year := 0;
+  Tags := '';
 
   // set to default encoding
   Encoding := Ini.DefaultEncoding;

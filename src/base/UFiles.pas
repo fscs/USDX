@@ -148,11 +148,13 @@ begin
       if Song.Genre       <> 'Unknown' then    SongFile.WriteLine('#GENRE:'     + EncodeToken(Song.Genre));
       if Song.Year        <> 0         then    SongFile.WriteLine('#YEAR:'      + IntToStr(Song.Year));
       if Song.Creator     <> ''        then    SongFile.WriteLine('#CREATOR:'   + EncodeToken(Song.Creator));
+      if Song.Tags        <> ''        then    SongFile.WriteLine('#TAGS:'      + EncodeToken(Song.Tags));
 
-      if Song.FormatVersion.MinVersion(1,1,0) then
+      if Song.FormatVersion.MinVersion(1,0,0) then
         SongFile.WriteLine('#AUDIO:' + EncodeToken(Song.Audio.ToUTF8));
       if Song.FormatVersion.MaxVersion(2,0,0) then
          SongFile.WriteLine('#MP3:' + EncodeToken(Song.Audio.ToUTF8));
+      if Assigned(Song.Karaoke) and (Song.Karaoke <> PATH_NONE()) and Song.Karaoke.IsSet            then    SongFile.WriteLine('#INSTRUMENTAL:'+ EncodeToken(Song.Karaoke.ToUTF8));
 
       if Song.Cover.IsSet              then    SongFile.WriteLine('#COVER:'       + EncodeToken(Song.Cover.ToUTF8));
       if Song.Background.IsSet         then    SongFile.WriteLine('#BACKGROUND:'  + EncodeToken(Song.Background.ToUTF8));

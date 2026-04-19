@@ -54,7 +54,7 @@ class Handler(BaseHTTPRequestHandler):
     # -----------------------------------------------------------------
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path != "/queuesong":
+        if parsed.path != "/songfinished":
             self._send_text("Not Found", code=404)
             return
 

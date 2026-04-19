@@ -46,7 +46,9 @@ uses
   dglOpenGL,
   math,
   sdl2,
-  SysUtils;
+  SysUtils,
+  Classes,
+  fphttpclient;
 
 const
   ZBars:            real = 0.8;   // Z value for the bars
@@ -1299,6 +1301,35 @@ begin
   BarTime := SDL_GetTicks();
 end;
 
+procedure PostPlainTextToURL(const URL, Body: string);
+var
+  HTTP    : TFPHTTPClient;
+  Response: TStringStream;
+begin
+  HTTP   := TFPHTTPClient.Create(nil);
+  Response := TStringStream.Create('');
+  try
+    try
+      Log.LogInfo('POST ' + URL, Body);
+      HTTP.ConnectTimeout := 5000;   // 5 s to open the TCP socket
+      HTTP.RequestHeaders.Add('Content-Type: application/json; charset=utf-8');
+      HTTP.RequestHeaders.Add('User-Agent: UltraStar/1.0 (+https://ultrastar.org)');
+      HTTP.RequestBody := TRawByteStringStream.Create(Body);
+
+      HTTP.Post(URL, Response);
+
+      Log.LogInfo('POST Response Code: ', IntToStr(HTTP.ResponseStatusCode));
+    except
+      on E: Exception do
+        Log.LogError(Format('POST %s failed: %s', [URL, E.Message]), '');
+    end;
+  finally
+    HTTP.RequestBody.Free;
+    HTTP.Free;
+    Response.Free;
+  end;
+end;
+
 procedure TScreenScore.onShowFinish;
 var
   index: integer;
@@ -1311,6 +1342,8 @@ begin
   end;
 
   BarTime := SDL_GetTicks();
+
+  PostPlainTextToURL('http://localhost:8080/songfinished', '{"title":"' + CurrentSong.Title + '","artist":"' + currentSong.Artist + '"}')
 end;
 
 function TScreenScore.Draw: boolean;

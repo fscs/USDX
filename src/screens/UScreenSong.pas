@@ -53,7 +53,9 @@ uses
   UTime,
   UUnicodeStringHelper,
   sdl2,
-  SysUtils;
+  SysUtils,
+  Classes,
+  fphttpclient;
 
 type
   TVisArr = array of integer;
@@ -245,6 +247,7 @@ type
       procedure SetSlideScrollRefresh;
       procedure SetListScrollRefresh;
 
+      function FeedStringToMenu(const S: string): boolean;
       function ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean; override;
 
       function ParseMouse(MouseButton: integer; BtnDown: boolean; X, Y: integer): boolean; override;
@@ -636,6 +639,85 @@ begin
     end;
   end;
 
+end;
+
+{ -----------------------------------------------------------------------
+  GetPlainTextFromURL
+  -----------------------------------------------------------------------
+  Makes a simple HTTP GET request and returns the body as a string.
+  If the request fails an empty string is returned and the error is logged.
+  ----------------------------------------------------------------------- }
+function GetPlainTextFromURL(const URL: string): string;
+var
+  HTTP  : TFPHTTPClient;
+  Resp  : TStringStream;
+begin
+  Result := '';
+  HTTP   := TFPHTTPClient.Create(nil);
+  Resp   := TStringStream.Create('');
+  try
+    Log.LogInfo(Format('GET %s', [URL, Length(Result)]), '');
+    // ---- optional tuning -------------------------------------------------
+    HTTP.AllowRedirect := True;            // follow 301/302 automatically
+    HTTP.ConnectTimeout := 5000;           // ms, how long to wait for a connection
+
+    // The GET request – if it succeeds the response body is in Resp.DataString
+    HTTP.Get(URL, Resp);
+
+    // ----------- logging (optional but handy) ---------------------------
+    Log.LogInfo(Format('GET %s → %d bytes', [URL, Length(Result)]), Result);
+    // --------------------------------------------------------------------
+  except
+    on E: Exception do
+    begin
+      // Any error (connection refused, timeout, non‑2xx status, etc.)
+      Log.LogError(Format('GET %s failed: %s', [URL, E.Message]), '');
+    end;
+  end;
+  Resp.Free;
+  HTTP.Free;
+end;
+
+{ -----------------------------------------------------------------------
+FeedStringToMenu
+-----------------------------------------------------------------------
+Takes a plain‑text string and injects each character into the menu
+exactly as if the player had typed it on the keyboard.
+----------------------------------------------------------------------- }
+function TScreenSong.FeedStringToMenu(const S: string): boolean;
+var
+  i          : Integer;
+  ch         : Char;
+  PressedKey : Integer;
+  CharCode   : Word;
+begin
+  // Guard against empty strings – nothing to do.
+  if Length(S) = 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  // Result := ParseInput(Ord('j'), Ord('j'), True);
+
+  // UltraStar’s menu routine expects each character to be processed as a
+  // **key‑down** event.  We simply loop over the string.
+  for i := 1 to Length(S) do
+  begin
+    ch := S[i];
+
+    // For pure ASCII we can use the same value for both parameters.
+    // If you ever need to support Unicode you could use
+    //   PressedKey := 0;
+    //   CharCode   := Ord(ch);
+    PressedKey := Ord(ch);
+    CharCode   := Ord(ch);
+
+    writeln(CharCode);
+
+    // The third argument – “pressed down” – is always True for menu input.
+    Result := ParseInput(PressedKey, CharCode, True);
+  end;
 end;
 
 // Method for input parsing. If false is returned, GetNextWindow
@@ -3122,6 +3204,8 @@ begin
 
   //if (Mode = smPartyTournament) then
   //  PartyTime := SDL_GetTicks();
+
+  FeedStringToMenu(GetPlainTextFromURL('http://localhost:8080/nextsong'));
 
 end;
 

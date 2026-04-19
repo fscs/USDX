@@ -663,6 +663,7 @@ begin
 
     // The GET request – if it succeeds the response body is in Resp.DataString
     HTTP.Get(URL, Resp);
+    Result := Resp.DataString;   // plain‑text response
 
     // ----------- logging (optional but handy) ---------------------------
     Log.LogInfo(Format('GET %s → %d bytes', [URL, Length(Result)]), Result);
@@ -698,7 +699,12 @@ begin
     Exit;
   end;
 
-  // Result := ParseInput(Ord('j'), Ord('j'), True);
+  // Trigger search
+  Result := ParseInput(Ord('j'), Ord('j'), True);
+
+  // If returning from a song, there is already text in the search field
+  for i:= 0 to 30 do
+    Result := ParseInput(SDLK_BACKSPACE, SDLK_BACKSPACE, True);
 
   // UltraStar’s menu routine expects each character to be processed as a
   // **key‑down** event.  We simply loop over the string.
@@ -712,8 +718,6 @@ begin
     //   CharCode   := Ord(ch);
     PressedKey := Ord(ch);
     CharCode   := Ord(ch);
-
-    writeln(CharCode);
 
     // The third argument – “pressed down” – is always True for menu input.
     Result := ParseInput(PressedKey, CharCode, True);

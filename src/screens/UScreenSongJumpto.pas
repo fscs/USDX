@@ -60,6 +60,7 @@ type
     public
       constructor Create; override;
 
+      procedure ApplySearchText(const SearchText: UTF8String);
       function ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean; override;
       procedure OnShow; override;
       function Draw: boolean; override;
@@ -241,6 +242,20 @@ end;
 function TScreenSongJumpto.Draw: boolean;
 begin
   Result := inherited Draw;
+end;
+
+procedure TScreenSongJumpto.ApplySearchText(const SearchText: UTF8String);
+begin
+  // Open JumpTo and apply the search text in one step.
+  Visible := true;
+  Interaction := 0;
+  Button[0].Text[0].Selected := true;
+  Button[0].Text[0].ColR := Theme.SongJumpto.ButtonSearchText.ColR;
+  Button[0].Text[0].ColG := Theme.SongJumpto.ButtonSearchText.ColG;
+  Button[0].Text[0].ColB := Theme.SongJumpto.ButtonSearchText.ColB;
+  Button[0].Text[0].Text := SearchText;
+  SetTextFound(CatSongs.SetFilter(Button[0].Text[0].Text, fSelectType));
+  ScreenSong.NextRandomSearchIdx := CatSongs.VisibleSongs;
 end;
 
 procedure TScreenSongJumpto.SetTextFound(Count: cardinal);

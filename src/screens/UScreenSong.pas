@@ -686,12 +686,6 @@ Takes a plain‑text string and injects each character into the menu
 exactly as if the player had typed it on the keyboard.
 ----------------------------------------------------------------------- }
 function TScreenSong.FeedStringToMenu(const S: string): boolean;
-var
-  i          : Integer;
-  Chars      : UCS4String;
-  ch         : UCS4Char;
-  PressedKey : Integer;
-  CharCode   : UCS4Char;
 begin
   // Guard against empty strings – nothing to do.
   if Length(S) = 0 then
@@ -700,31 +694,9 @@ begin
     Exit;
   end;
 
-  // Trigger search
-  Result := ParseInput(Ord('j'), Ord('j'), True);
-
-  // If returning from a song, there is already text in the search field
-  for i:= 0 to 60 do
-    Result := ParseInput(SDLK_BACKSPACE, SDLK_BACKSPACE, True);
-
-  // UltraStar’s menu routine expects each character to be processed as a
-  // **key‑down** event.  Decode the response as UTF-8 and inject codepoints.
-  Chars := UTF8ToUCS4String(UTF8String(S));
-  for i := 0 to High(Chars) do
-  begin
-    ch := Chars[i];
-
-    // Keep special-key handling separate; printable text is carried by CharCode.
-    if Ord(ch) < 128 then
-      PressedKey := Ord(ch)
-    else
-      PressedKey := 0;
-
-    CharCode := ch;
-
-    // The third argument – “pressed down” – is always True for menu input.
-    Result := ParseInput(PressedKey, CharCode, True);
-  end;
+  // Apply search text directly instead of simulating key events.
+  ScreenSongJumpto.ApplySearchText(UTF8String(S));
+  Result := True;
 end;
 
 // Method for input parsing. If false is returned, GetNextWindow

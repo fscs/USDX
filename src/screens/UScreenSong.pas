@@ -688,9 +688,10 @@ exactly as if the player had typed it on the keyboard.
 function TScreenSong.FeedStringToMenu(const S: string): boolean;
 var
   i          : Integer;
-  ch         : Char;
+  Chars      : UCS4String;
+  ch         : UCS4Char;
   PressedKey : Integer;
-  CharCode   : Word;
+  CharCode   : UCS4Char;
 begin
   // Guard against empty strings – nothing to do.
   if Length(S) = 0 then
@@ -707,20 +708,19 @@ begin
     Result := ParseInput(SDLK_BACKSPACE, SDLK_BACKSPACE, True);
 
   // UltraStar’s menu routine expects each character to be processed as a
-  // **key‑down** event.  We simply loop over the string.
-  for i := 1 to Length(S) do
+  // **key‑down** event.  Decode the response as UTF-8 and inject codepoints.
+  Chars := UTF8ToUCS4String(UTF8String(S));
+  for i := 0 to High(Chars) do
   begin
-    ch := S[i];
+    ch := Chars[i];
 
-    // For pure ASCII we can use the same value for both parameters.
-    // If you ever need to support Unicode you could use
-    //   PressedKey := 0;
-    //   CharCode   := Ord(ch);
-    PressedKey := Ord(ch);
-    CharCode   := Ord(ch);
+    // Keep special-key handling separate; printable text is carried by CharCode.
+    if Ord(ch) < 128 then
+      PressedKey := Ord(ch)
+    else
+      PressedKey := 0;
 
-    if PressedKey > 127 then // non-ascii, just skip that for now
-      Exit;
+    CharCode := ch;
 
     // The third argument – “pressed down” – is always True for menu input.
     Result := ParseInput(PressedKey, CharCode, True);

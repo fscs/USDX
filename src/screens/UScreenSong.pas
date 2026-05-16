@@ -703,7 +703,7 @@ begin
   Result := ParseInput(Ord('j'), Ord('j'), True);
 
   // If returning from a song, there is already text in the search field
-  for i:= 0 to 30 do
+  for i:= 0 to 60 do
     Result := ParseInput(SDLK_BACKSPACE, SDLK_BACKSPACE, True);
 
   // UltraStar’s menu routine expects each character to be processed as a
@@ -718,6 +718,9 @@ begin
     //   CharCode   := Ord(ch);
     PressedKey := Ord(ch);
     CharCode   := Ord(ch);
+
+    if PressedKey > 127 then // non-ascii, just skip that for now
+      Exit;
 
     // The third argument – “pressed down” – is always True for menu input.
     Result := ParseInput(PressedKey, CharCode, True);

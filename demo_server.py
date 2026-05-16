@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-# ------------------------------------------------------------
-# demo_server.py
-#   * GET  /nextsong   →  "Super Trouper"
-#   * POST /queuesong  →  prints the posted payload, replies JSON
-# ------------------------------------------------------------
 
 import json
 import sys
@@ -44,7 +39,7 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/nextsong":
             # The answer you wanted – plain text, no JSON wrapper.
-            self._send_text("Super Trouper")
+            self._send_text(input("Enter response string for /nextsong (e.g. »Super Trouper«): "))
         else:
             # Anything else is 404
             self._send_text("Not Found", code=404)
@@ -81,7 +76,7 @@ class Handler(BaseHTTPRequestHandler):
         # -------------------------------------------------------------
         # 3️⃣  Print what we received (goes to the console where you launched the server)
         # -------------------------------------------------------------
-        print("\n=== /queuesong POST received ===", file=sys.stderr)
+        print("\n=== /songfinished POST received ===", file=sys.stderr)
         print(f"Headers:\n{self.headers}")
         print("Body:")
         print(pretty)
@@ -110,7 +105,7 @@ def run():
     srv = HTTPServer((HOST, PORT), Handler)
     print(f"🚀  Demo server listening on http://{HOST}:{PORT}")
     print("   * GET  /nextsong   →  \"Super Trouper\"")
-    print("   * POST /queuesong  →  prints body to this console")
+    print("   * POST /songfinished  →  prints body to this console")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

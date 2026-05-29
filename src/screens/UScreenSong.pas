@@ -55,7 +55,8 @@ uses
   sdl2,
   SysUtils,
   Classes,
-  fphttpclient;
+  fphttpclient,
+  opensslsockets;
 
 type
   TVisArr = array of integer;

@@ -48,7 +48,8 @@ uses
   sdl2,
   SysUtils,
   Classes,
-  fphttpclient;
+  fphttpclient,
+  opensslsockets;
 
 const
   ZBars:            real = 0.8;   // Z value for the bars

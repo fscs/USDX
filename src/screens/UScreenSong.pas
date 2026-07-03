@@ -668,6 +668,7 @@ begin
 
     // ----------- logging (optional but handy) ---------------------------
     Log.LogInfo(Format('GET %s → %d bytes', [URL, Length(Result)]), Result);
+    WriteLn(Format('GET %s → %d bytes', [URL, Length(Result)]));
     // --------------------------------------------------------------------
   except
     on E: Exception do
@@ -2828,7 +2829,6 @@ procedure TScreenSong.SetSlideScrollRefresh;
 begin
 end;
 
-
 (**
  * List
  *)
@@ -3185,7 +3185,7 @@ begin
   //if (Mode = smPartyTournament) then
   //  PartyTime := SDL_GetTicks();
 
-  FeedStringToMenu(GetPlainTextFromURL('http://localhost:8080/nextsong'));
+  FeedStringToMenu(GetPlainTextFromURL('https://ultraqueue.sebigbos.hhu-fscs.de/nextsong'));
 
 end;
 
@@ -3255,7 +3255,6 @@ begin
     SongCurrent := SongCurrent - Catsongs.VisibleSongs;
     SongTarget := SongTarget - Catsongs.VisibleSongs;
   end;  }
-
 
   //Log.BenchmarkStart(5);
 
@@ -3495,7 +3494,6 @@ begin
     NextInt := (Interaction + Skip) mod Length(Interactions);
 
     SongTarget := SongTarget + 1;//Skip;
-
 
     if not ((TSongMenuMode(Ini.SongMenu) in [smChessboard, smList, smMosaic]) and (NextInt < Interaction)) then
       Interaction := NextInt;
@@ -4201,9 +4199,12 @@ begin
 end;
 
 //Procedures for Menu
-
 procedure TScreenSong.StartSong;
 begin
+  WriteLn('Starting song: ' + CatSongs.Song[Interaction].Title + ' by ' + CatSongs.Song[Interaction].Artist);
+
+  WriteLn(GetPlainTextFromURL('https://ultraqueue.sebigbos.hhu-fscs.de/startedplaying'));
+
   CatSongs.Selected := Interaction;
 
   if (Mode = smPartyFree) then
@@ -4513,7 +4514,6 @@ begin
   Text[TextScoreUserLocal].Text  := DataBase.ReadUser_ScoreLocal(CatSongs.Song[Interaction].Artist, CatSongs.Song[Interaction].Title, Ini.PlayerLevel[0]);
 
 end;
-
 
 procedure TScreenSong.WriteMessage(msg: UTF8String);
 begin

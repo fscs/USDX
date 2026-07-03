@@ -272,7 +272,7 @@ begin
   end;
 
   SendStatus := DllMan.WebsiteSendScore(SendInfo);
-  
+
   case SendStatus of
     0: ScreenPopupError.ShowPopup(Language.Translate('WEBSITE_NO_CONNECTION'));
     2: ScreenPopupError.ShowPopup(Language.Translate('WEBSITE_LOGIN_ERROR'));
@@ -1344,7 +1344,7 @@ begin
 
   BarTime := SDL_GetTicks();
 
-  PostPlainTextToURL('http://localhost:8080/songfinished', '{"title":"' + CurrentSong.Title + '","artist":"' + currentSong.Artist + '"}')
+  PostPlainTextToURL('https://ultraqueue.sebigbos.hhu-fscs.de/songfinished', '{"title":"' + CurrentSong.Title + '","artist":"' + currentSong.Artist + '"}')
 end;
 
 function TScreenScore.Draw: boolean;
@@ -1398,8 +1398,6 @@ begin
 
   if (ShowFinish) then
     DrawPlayerBars;
-
-
 
 (*
     //todo: i need a clever method to draw statics with their z value
@@ -1548,7 +1546,7 @@ begin
     glBindTexture(GL_TEXTURE_2D, Tex_Score_Ratings[Rating].TexNum);
 
     glColor3f(1.0, 1.0, 1.0);
-      
+
     glEnable(GL_TEXTURE_2D);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_BLEND);
@@ -1927,6 +1925,5 @@ begin
   }
 
 end;
-
 
 end.

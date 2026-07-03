@@ -3185,7 +3185,7 @@ begin
   //if (Mode = smPartyTournament) then
   //  PartyTime := SDL_GetTicks();
 
-  FeedStringToMenu(GetPlainTextFromURL('https://ultraqueue.sebigbos.hhu-fscs.de/nextsong'));
+  FeedStringToMenu(GetPlainTextFromURL('http://ultraqueue.sebigbos.hhu-fscs.de/nextsong'));
 
 end;
 
@@ -4203,7 +4203,7 @@ procedure TScreenSong.StartSong;
 begin
   WriteLn('Starting song: ' + CatSongs.Song[Interaction].Title + ' by ' + CatSongs.Song[Interaction].Artist);
 
-  WriteLn(GetPlainTextFromURL('https://ultraqueue.sebigbos.hhu-fscs.de/startedplaying'));
+  WriteLn(GetPlainTextFromURL('http://ultraqueue.sebigbos.hhu-fscs.de/startedplaying'));
 
   CatSongs.Selected := Interaction;
 

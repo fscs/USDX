@@ -1344,7 +1344,7 @@ begin
 
   BarTime := SDL_GetTicks();
 
-  PostPlainTextToURL('http://ultraqueue.sebigbos.hhu-fscs.de/songfinished', '{"title":"' + CurrentSong.Title + '","artist":"' + currentSong.Artist + '"}')
+  PostPlainTextToURL('https://ultraqueue.sebigbos.hhu-fscs.de/songfinished', '{"title":"' + CurrentSong.Title + '","artist":"' + currentSong.Artist + '"}')
 end;
 
 function TScreenScore.Draw: boolean;

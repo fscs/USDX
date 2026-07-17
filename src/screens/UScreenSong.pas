@@ -681,6 +681,37 @@ begin
   HTTP.Free;
 end;
 
+procedure PostPlainTextToURL(const URL, Body: string);
+var
+  HTTP    : TFPHTTPClient;
+  Response: TStringStream;
+begin
+  HTTP   := TFPHTTPClient.Create(nil);
+  Response := TStringStream.Create('');
+  try
+    try
+      Log.LogInfo('POST ' + URL, Body);
+      WriteLn('POST ' + URL, Body);
+      HTTP.ConnectTimeout := 5000;   // 5 s to open the TCP socket
+      HTTP.RequestHeaders.Add('Content-Type: application/json; charset=utf-8');
+      HTTP.RequestHeaders.Add('User-Agent: UltraStar/1.0 (+https://ultrastar.org)');
+      HTTP.RequestBody := TRawByteStringStream.Create(Body);
+
+      HTTP.Post(URL, Response);
+
+      Log.LogInfo('POST Response Code: ', IntToStr(HTTP.ResponseStatusCode));
+      WriteLn('POST Response Code: ', IntToStr(HTTP.ResponseStatusCode));
+    except
+      on E: Exception do
+        Log.LogError(Format('POST %s failed: %s', [URL, E.Message]), '');
+    end;
+  finally
+    HTTP.RequestBody.Free;
+    HTTP.Free;
+    Response.Free;
+  end;
+end;
+
 { -----------------------------------------------------------------------
 FeedStringToMenu
 -----------------------------------------------------------------------
@@ -3185,7 +3216,7 @@ begin
   //if (Mode = smPartyTournament) then
   //  PartyTime := SDL_GetTicks();
 
-  FeedStringToMenu(GetPlainTextFromURL('http://ultraqueue.sebigbos.hhu-fscs.de/nextsong'));
+  FeedStringToMenu(GetPlainTextFromURL('https://ultraqueue.sebigbos.hhu-fscs.de/nextsong'));
 
 end;
 
@@ -4203,7 +4234,7 @@ procedure TScreenSong.StartSong;
 begin
   WriteLn('Starting song: ' + CatSongs.Song[Interaction].Title + ' by ' + CatSongs.Song[Interaction].Artist);
 
-  WriteLn(GetPlainTextFromURL('http://ultraqueue.sebigbos.hhu-fscs.de/startedplaying'));
+  PostPlainTextToURL('https://ultraqueue.sebigbos.hhu-fscs.de/startedplaying', '{"title": "' + CatSongs.Song[Interaction].Title + '", "artist": "' + CatSongs.Song[Interaction].Artist + '"}');
 
   CatSongs.Selected := Interaction;
 

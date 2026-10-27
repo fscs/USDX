@@ -59,7 +59,7 @@
   Load the OpenGL Utility library
 }
 
-{$define DGL_DEPRECATED}
+{.$define DGL_DEPRECATED}
 {
   This define defines if the header should use deprecated ARB stuff or not.
   per Default the Header use deprecated Stuff.
@@ -10622,7 +10622,7 @@ type
   TglProgramUniformui64vNV = procedure(_program: GLuint; location: GLint; count: GLsizei; const value: PGLuint64EXT); {$IFDEF DGL_WIN}stdcall; {$ELSE}cdecl; {$ENDIF}
 
   // GL_NV_vertex_buffer_unified_memory
-  TglBufferAddressRangeNV = procedure(pname: GLenum; index: GLuint; adress: GLuint64EXT; length: GLsizeiptr); {$IFDEF DGL_WIN}stdcall; {$ELSE}cdecl; {$ENDIF}
+  TglBufferAddressRangeNV = procedure(pname: GLenum; index: GLuint; address: GLuint64EXT; length: GLsizeiptr); {$IFDEF DGL_WIN}stdcall; {$ELSE}cdecl; {$ENDIF}
   TglVertexFormatNV = procedure(size: GLint; _type: GLenum; stride: GLsizei); {$IFDEF DGL_WIN}stdcall; {$ELSE}cdecl; {$ENDIF}
   TglNormalFormatNV = procedure(_type: GLenum; stride: GLsizei); {$IFDEF DGL_WIN}stdcall; {$ELSE}cdecl; {$ENDIF}
   TglColorFormatNV = procedure(size: GLint; _type: GLenum; stride: GLsizei); {$IFDEF DGL_WIN}stdcall; {$ELSE}cdecl; {$ENDIF}
@@ -15081,6 +15081,9 @@ procedure Read_WIN_draw_range_elements;
 procedure Read_WIN_swap_hint;
 {$ENDIF}
 
+procedure ReadCoreVersion;
+function Int_CheckExtension(AllExtensions, CheckExtension: AnsiString): Boolean;
+function Int_GetExtensionString: AnsiString;
 
 implementation
 
@@ -20605,7 +20608,7 @@ begin
 
   if not Assigned(wglCreateContextAttribsARB) then
     begin
-      raise Exception.Create('Could not get function pointer adress for wglCreateContextAttribsARB - OpenGL 3.x and above not supported!');
+      raise Exception.Create('Could not get function pointer address for wglCreateContextAttribsARB - OpenGL 3.x and above not supported!');
       wglDeleteContext(LegacyRC);
       exit;
     end;

@@ -40,6 +40,7 @@ uses
   UMenu,
   UMusic,
   UNote,
+  UParty,
   UScreenSingController,
   UScreenPartyNewRound,
   UScreenPartyScore,
@@ -56,8 +57,9 @@ type
 
       SelectTeams:     cardinal;
       SelectPlayers: array [0..2] of cardinal;
-      procedure UpdateInterface;
-      procedure UpdateParty;
+      FCachedSetupValid: boolean;
+      FCachedTeamNames: array[0..Party_Teams_Max-1] of UTF8String;
+      FCachedPlayerNames: array[0..Party_Teams_Max-1, 0..Party_Players_Max-1] of UTF8String;
     public
       Team1Name: cardinal;
       Player1Name: cardinal;
@@ -82,17 +84,17 @@ type
       function ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean; override;
       function ParseMouse(MouseButton: integer; BtnDown: boolean; X, Y: integer): boolean; override;
       procedure OnShow; override;
-      
-      procedure SetAnimationProgress(Progress: real); override;
+
       function NoRepeatColors(ColorP:integer; Interaction:integer; Pos:integer):integer;
       procedure TeamColorButton(K: integer; Interact: integer);
       procedure ShuffleNames(var PlayerNames: array of UTF8String);
 
-  end;
+      procedure UpdateInterface;
+      procedure UpdateParty;
+      procedure CacheCurrentSetup;
+      procedure RestoreCachedSetup;
 
-const
-  ITeams:   array[0..1] of UTF8String = ('2', '3');
-  IPlayers: array[0..3] of UTF8String = ('1', '2', '3', '4');
+  end;
 
 const
   ID='ID_031';   //for help system
@@ -107,13 +109,36 @@ uses
   ULanguage,
   ULog,
   UMain,
-  UParty,
   UScreenPartyOptions,
-  UTexture,
   UUnicodeUtils;
 
 var
   Num: array[0..2] of integer;
+
+procedure TScreenPartyPlayer.CacheCurrentSetup;
+var
+  Team, Player: integer;
+begin
+  for Team := 0 to Party_Teams_Max - 1 do
+  begin
+    FCachedTeamNames[Team] := Button[Team * 5].Text[0].Text;
+    for Player := 0 to Party_Players_Max - 1 do
+      FCachedPlayerNames[Team, Player] := Button[Team * 5 + Player + 1].Text[0].Text;
+  end;
+  FCachedSetupValid := true;
+end;
+
+procedure TScreenPartyPlayer.RestoreCachedSetup;
+var
+  Team, Player: integer;
+begin
+  for Team := 0 to Party_Teams_Max - 1 do
+  begin
+    Button[Team * 5].Text[0].Text := FCachedTeamNames[Team];
+    for Player := 0 to Party_Players_Max - 1 do
+      Button[Team * 5 + Player + 1].Text[0].Text := FCachedPlayerNames[Team, Player];
+  end;
+end;
 
 procedure TScreenPartyPlayer.UpdateInterface;
   var
@@ -153,16 +178,7 @@ var
     Col: TRGB;
 begin
 
-  {//Save PlayerNames
-  for I := 0 to PartySession.Teams.NumTeams-1 do
-  begin
-    PartySession.Teams.Teaminfo[I].Name := PChar(Button[I*5].Text[0].Text);
-    for J := 0 to PartySession.Teams.Teaminfo[I].NumPlayers-1 do
-    begin
-      PartySession.Teams.Teaminfo[I].Playerinfo[J].Name := PChar(Button[I*5 + J+1].Text[0].Text);
-      PartySession.Teams.Teaminfo[I].Playerinfo[J].TimesPlayed := 0;
-    end;
-  end; }
+  CacheCurrentSetup;
 
   // add teams to party
 
@@ -170,7 +186,7 @@ begin
   begin
     Ini.SingColor[I] := Num[I];
     Ini.TeamColor[I] := Num[I];
-    
+
     Party.AddTeam(Button[I * 5].Text[0].Text);
 
     for J := 0 to CountPlayer[I] do
@@ -224,18 +240,11 @@ function TScreenPartyPlayer.ShouldHandleInput(PressedKey: cardinal; CharCode: UC
 begin
   Result := inherited;
   // only suppress special keys for now
-  case PressedKey of
-    // Templates for Names Mod
-    SDLK_F1, SDLK_F2, SDLK_F3, SDLK_F4, SDLK_F5, SDLK_F6, SDLK_F7, SDLK_F8, SDLK_F9, SDLK_F10, SDLK_F11, SDLK_F12:
-     if (Button[Interactions[Interaction].Num].Selected) then
-     begin
-       SuppressKey := true;
-     end
-     else
-     begin
-       Result := false;
-     end;
-  end;
+  if GetNameTemplateIndexFromKey(PressedKey) <> -1 then
+    if (Button[Interactions[Interaction].Num].Selected) then
+      SuppressKey := true
+    else
+      Result := false;
 end;
 
 function TScreenPartyPlayer.ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean;
@@ -272,6 +281,14 @@ function TScreenPartyPlayer.ParseInput(PressedKey: cardinal; CharCode: UCS4Char;
     if isAlternate then Ini.NameTemplate[index] := Button[Interactions[Interaction].Num].Text[0].Text
     else Button[Interactions[Interaction].Num].Text[0].Text := Ini.NameTemplate[index];
   end;
+  procedure HandleTemplateHotkey;
+  var
+    TemplateIndex: integer;
+  begin
+    TemplateIndex := GetNameTemplateIndexFromKey(PressedKey);
+    if (TemplateIndex >= 0) and (TemplateIndex <= High(Ini.NameTemplate)) then
+      HandleNameTemplate(TemplateIndex);
+  end;
 begin
   Result := true;
 
@@ -296,20 +313,9 @@ begin
 
     // check special keys
     case PressedKey of
-      // Templates for Names Mod
-      SDLK_F1: HandleNameTemplate(0);
-      SDLK_F2: HandleNameTemplate(1);
-      SDLK_F3: HandleNameTemplate(2);
-      SDLK_F4: HandleNameTemplate(3);
-      SDLK_F5: HandleNameTemplate(4);
-      SDLK_F6: HandleNameTemplate(5);
-      SDLK_F7: HandleNameTemplate(6);
-      SDLK_F8: HandleNameTemplate(7);
-      SDLK_F9: HandleNameTemplate(8);
-      SDLK_F10: HandleNameTemplate(9);
-      SDLK_F11: HandleNameTemplate(10);
-      SDLK_F12: HandleNameTemplate(11);
-
+      SDLK_F1, SDLK_F2, SDLK_F3, SDLK_F4, SDLK_F5, SDLK_F6,
+      SDLK_F7, SDLK_F8, SDLK_F9, SDLK_F10, SDLK_F11, SDLK_F12:
+        HandleTemplateHotkey;
       SDLK_BACKSPACE:
         begin
           Button[Interactions[Interaction].Num].Text[0].DeleteLastLetter;
@@ -470,21 +476,26 @@ end;
 constructor TScreenPartyPlayer.Create;
 var
   ButtonID: integer;
+  TeamOptions: TUTF8StringArray;
+  PlayerOptions: TUTF8StringArray;
 begin
   inherited Create;
 
   LoadFromTheme(Theme.PartyPlayer);
 
+  TeamOptions := CreateNumericOptionArray(2, 3);
+  PlayerOptions := CreateNumericOptionArray(1, 4);
+
   Theme.PartyPlayer.SelectTeams.oneItemOnly := true;
   Theme.PartyPlayer.SelectTeams.showArrows := true;
-  SelectTeams     := AddSelectSlide(Theme.PartyPlayer.SelectTeams, CountTeams, ITeams);
+  SelectTeams     := AddSelectSlide(Theme.PartyPlayer.SelectTeams, CountTeams, TeamOptions);
 
   Team1Name := AddButton(Theme.PartyPlayer.Team1Name);
   Button[Team1Name].Text[0].Writable := true;
 
   Theme.PartyPlayer.SelectPlayers1.oneItemOnly := true;
   Theme.PartyPlayer.SelectPlayers1.showArrows := true;
-  SelectPlayers[0]  := AddSelectSlide(Theme.PartyPlayer.SelectPlayers1, CountPlayer[0], IPlayers);
+  SelectPlayers[0]  := AddSelectSlide(Theme.PartyPlayer.SelectPlayers1, CountPlayer[0], PlayerOptions);
 
   ButtonID := AddButton(Theme.PartyPlayer.Player1Name);
   Button[ButtonID].Text[0].Writable := true;
@@ -503,7 +514,7 @@ begin
 
   Theme.PartyPlayer.SelectPlayers2.oneItemOnly := true;
   Theme.PartyPlayer.SelectPlayers2.showArrows := true;
-  SelectPlayers[1]  := AddSelectSlide(Theme.PartyPlayer.SelectPlayers2, CountPlayer[1], IPlayers);
+  SelectPlayers[1]  := AddSelectSlide(Theme.PartyPlayer.SelectPlayers2, CountPlayer[1], PlayerOptions);
 
   ButtonID := AddButton(Theme.PartyPlayer.Player5Name);
   Button[ButtonID].Text[0].Writable := true;
@@ -522,7 +533,7 @@ begin
 
   Theme.PartyPlayer.SelectPlayers3.oneItemOnly := true;
   Theme.PartyPlayer.SelectPlayers3.showArrows := true;
-  SelectPlayers[2]  := AddSelectSlide(Theme.PartyPlayer.SelectPlayers3, CountPlayer[2], IPlayers);
+  SelectPlayers[2]  := AddSelectSlide(Theme.PartyPlayer.SelectPlayers3, CountPlayer[2], PlayerOptions);
 
   ButtonID := AddButton(Theme.PartyPlayer.Player9Name);
   Button[ButtonID].Text[0].Writable := true;
@@ -545,6 +556,7 @@ begin
   CountPlayer[0] := 0;
   CountPlayer[1] := 0;
   CountPlayer[2] := 0;
+  FCachedSetupValid := false;
 end;
 
 procedure TScreenPartyPlayer.OnShow;
@@ -556,23 +568,30 @@ begin
   if not Help.SetHelpID(ID) then
     Log.LogWarn('No Entry for Help-ID ' + ID, 'ScreenPartyPlayer');
 
-  for I := 0 to 2 do
-    Num[I] := NoRepeatColors(Ini.TeamColor[I], I, 1);
+  if FCachedSetupValid then
+  begin
+    RestoreCachedSetup;
+  end
+  else
+  begin
+    for I := 0 to 2 do
+      Num[I] := NoRepeatColors(Ini.TeamColor[I], I, 1);
 
-  // Templates for Names Mod
-  for I := 1 to 4 do
-    Button[I].Text[0].Text := Ini.Name[I-1];
+    // Templates for Names Mod
+    for I := 1 to 4 do
+      Button[I].Text[0].Text := Ini.Name[I-1];
 
-  for I := 6 to 9 do
-    Button[I].Text[0].Text := Ini.Name[I-2];
+    for I := 6 to 9 do
+      Button[I].Text[0].Text := Ini.Name[I-2];
 
-  for I := 11 to 14 do
-    Button[I].Text[0].Text := Ini.Name[I-3];
+    for I := 11 to 14 do
+      Button[I].Text[0].Text := Ini.Name[I-3];
 
     Button[0].Text[0].Text := Ini.NameTeam[0];
     Button[5].Text[0].Text := Ini.NameTeam[1];
     Button[10].Text[0].Text := Ini.NameTeam[2];
     // Templates for Names Mod end
+  end;
 
   Party.Clear;
 
@@ -648,14 +667,6 @@ begin
   for I := 0 to 15 do
     InteractPrev;
 
-end;
-
-procedure TScreenPartyPlayer.SetAnimationProgress(Progress: real);
-var
-  I:    integer;
-begin
-  {for I := 0 to high(Button) do
-    Button[I].Texture.ScaleW := Progress;   }
 end;
 
 // random permutation of player names according to Fisher-Yates

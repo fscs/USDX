@@ -45,17 +45,16 @@ uses
   UMusic,
   UPath,
   UPlaylist,
+  URenderer,
   USingScores,
   USongs,
-  UTexture,
   UThemes,
   UTime,
   UVideo,
   UWebcam,
-  dglOpenGL,
   sdl2,
   SysUtils,
-  TextGL;
+  UText;
 
 type
   TSongJukebox = class
@@ -133,8 +132,6 @@ type
 
     JukeboxTextTimeText: integer;
     //JukeboxTextSongText: integer;
-
-    SongFinish: boolean;
 
     tmpLyricsUpperY: real;
     tmpLyricsLowerY: real;
@@ -215,6 +212,7 @@ type
     LyricHelper: TRGB;
 
     constructor Create; override;
+    destructor Destroy; override;
     procedure OnShow; override;
     procedure OnShowFinish; override;
     procedure OnHide; override;
@@ -248,7 +246,6 @@ type
     procedure DrawMoveLine;
     procedure DrawSongInfo;
     procedure DrawSongMenu;
-    procedure DrawLine(X, Y, W, H: real);
 
     procedure ChangeTime(Time: real);
     procedure ChangeSongPosition(Start, Final: integer);
@@ -305,34 +302,18 @@ const
 
   MAX_TIME_SONGOPTIONS = 3000; // msec
 
-procedure TScreenJukebox.DrawLine(X, Y, W, H: real);
-begin
-  glEnable(GL_BLEND);
-  glColor4f(0.3, 0.3, 0.3, 0.4);
-  glbegin(gl_quads);
-   glVertex2f(X, Y);
-   glVertex2f(X, Y + H);
-   glVertex2f(X + W, Y + H);
-   glVertex2f(X + W, Y);
-  glEnd;
-end;
-
 procedure TScreenJukebox.DrawMoveLine();
 begin
-  glColor4f(SelectColR, SelectColG, SelectColB, 1);
-  glbegin(gl_quads);
-    glVertex2f(MoveX, MoveY);
-    glVertex2f(MoveX, MoveY + 2);
-    glVertex2f(MoveX + Button[SongDescription[0]].Texture.W, MoveY + 2);
-    glVertex2f(MoveX + Button[SongDescription[0]].Texture.W, MoveY);
-  glEnd;
+  Renderer.DrawQuad(MoveX, MoveY, 0, Button[SongDescription[0]].Texture.W, 2, SelectColR, SelectColG, SelectColB, 1);
 end;
 
 procedure TScreenJukebox.DrawBlackBars();
 var
   X, X1, Y, Y1, Z, H, W: double;
+  QuadList: TQuadList;
 begin
   fCurrentVideo.GetScreenPosition(X, Y, Z);
+  SetLength(QuadList, 4);
 
   // Upper
   X1 := 0;
@@ -340,13 +321,16 @@ begin
   H := Y + 1;
   W := 800;
 
-  glColor4f(0, 0, 0, 1);
-  glbegin(gl_quads);
-    glVertex2f(X1, Y1);
-    glVertex2f(X1, Y1 + H);
-    glVertex2f(X1 + W, Y1 + H);
-    glVertex2f(X1 + W, Y1);
-  glEnd;
+  QuadList[0].X := X1;
+  QuadList[0].Y := Y1;
+  QuadList[0].Z := 0;
+  QuadList[0].W := W;
+  QuadList[0].H := H;
+  QuadList[0].ColR := 0;
+  QuadList[0].ColG := 0;
+  QuadList[0].ColB := 0;
+  QuadList[0].Alpha := 1;
+  QuadList[0].Gradient := gdNone;
 
   // Bottom
   X1 := 0;
@@ -354,13 +338,16 @@ begin
   H := Y + 1;
   W := 800;
 
-  glColor4f(0, 0, 0, 1);
-  glbegin(gl_quads);
-    glVertex2f(X1, Y1);
-    glVertex2f(X1, Y1 - H);
-    glVertex2f(X1 + W, Y1 - H);
-    glVertex2f(X1 + W, Y1);
-  glEnd;
+  QuadList[1].X := X1;
+  QuadList[1].Y := Y1;
+  QuadList[1].Z := 0;
+  QuadList[1].W := W;
+  QuadList[1].H := H;
+  QuadList[1].ColR := 0;
+  QuadList[1].ColG := 0;
+  QuadList[1].ColB := 0;
+  QuadList[1].Alpha := 1;
+  QuadList[1].Gradient := gdNone;
 
   // Left
   X1 := 0;
@@ -368,13 +355,16 @@ begin
   H := 600;
   W := X + 1;
 
-  glColor4f(0, 0, 0, 1);
-  glbegin(gl_quads);
-    glVertex2f(X1, Y1);
-    glVertex2f(X1, Y1 + H);
-    glVertex2f(X1 + W, Y1 + H);
-    glVertex2f(X1 + W, Y1);
-  glEnd;
+  QuadList[2].X := X1;
+  QuadList[2].Y := Y1;
+  QuadList[2].Z := 0;
+  QuadList[2].W := W;
+  QuadList[2].H := H;
+  QuadList[2].ColR := 0;
+  QuadList[2].ColG := 0;
+  QuadList[2].ColB := 0;
+  QuadList[2].Alpha := 1;
+  QuadList[2].Gradient := gdNone;
 
   // Right
   X1 := 800;
@@ -382,14 +372,18 @@ begin
   H := 600;
   W := X + 1;
 
-  glColor4f(0, 0, 0, 1);
-  glbegin(gl_quads);
-    glVertex2f(X1, Y1);
-    glVertex2f(X1, Y1 + H);
-    glVertex2f(X1 - W, Y1 + H);
-    glVertex2f(X1 - W, Y1);
-  glEnd;
+  QuadList[3].X := X1;
+  QuadList[3].Y := Y1;
+  QuadList[3].Z := 0;
+  QuadList[3].W := W;
+  QuadList[3].H := H;
+  QuadList[3].ColR := 0;
+  QuadList[3].ColG := 0;
+  QuadList[3].ColB := 0;
+  QuadList[3].Alpha := 1;
+  QuadList[3].Gradient := gdNone;
 
+  Renderer.DrawQuads(QuadList);
 end;
 
 procedure TScreenJukebox.SongListSort(Order: integer);
@@ -430,8 +424,7 @@ end;
 
 procedure TScreenJukebox.Sort(Order: integer);
 var
-  I, J, X, Tmp, Comp: integer;
-  Text: UTF8String;
+  I, J, X, Comp: integer;
   NotEnd: boolean;
 begin
 
@@ -466,11 +459,6 @@ end;
 
 // TODO: this function does nothing?
 procedure TScreenJukebox.GoToSongList(UpperLetter: UCS4Char);
-var
-  SongDesc: UTF8String;
-  I, S, CurrentInteractionSong: integer;
-  isCurrentPage, existNextSong: boolean;
-  ListCurrentPage: array of integer;
 begin
  {
 
@@ -699,8 +687,6 @@ begin
 end;
 
 procedure OnDeleteSong(Value: boolean; Data: Pointer);
-var
-  tmp: integer;
 begin
   Display.CheckOK := Value;
 
@@ -713,8 +699,6 @@ begin
 end;
 
 procedure OnEscapeJukebox(Value: boolean; Data: Pointer);
-var
-  tmp: integer;
 begin
   Display.CheckOK := Value;
   if (Value) then
@@ -1335,10 +1319,7 @@ function TScreenJukebox.ParseInput(PressedKey: Cardinal; CharCode: UCS4Char;
   PressedDown: boolean): boolean;
 var
   SDL_ModState: word;
-  I, RValueI, RValueE: integer;
   tmp: integer;
-  X, Y, Z: double;
-  UpperLetter: UCS4Char;
 begin
   Result := true;
 
@@ -1415,7 +1396,7 @@ begin
             fShowVisualization := false;
             fCurrentVideo := fVideoClip;
             if (Assigned(fCurrentVideo)) then
-               fCurrentVideo.Position := CurrentSong.VideoGAP + CurrentSong.Start + AudioPlayback.Position;
+               fCurrentVideo.Position := CurrentSong.VideoGAP + AudioPlayback.Position;
             Log.LogStatus('finished switching to video', 'UScreenSing.ParseInput');
           end
           else
@@ -2063,6 +2044,12 @@ begin
   JukeboxStaticSongMenuBackground     := AddStatic(Theme.Jukebox.StaticSongMenuBackground);
 end;
 
+destructor TScreenJukebox.Destroy;
+begin
+  Tex_Background.Free;
+  inherited;
+end;
+
 procedure TScreenJukebox.OnShow;
 var
   Col: TRGB;
@@ -2171,11 +2158,7 @@ begin
 end;
 
 procedure TScreenJukebox.Play();
-var
-  I: integer;
 begin
-    AudioPlayback.Open(CurrentSong.Path.Append(CurrentSong.Audio));
-    AudioPlayback.SetVolume(1.0);
 
     //AudioPlayback.Position := CurrentSong.Start;
     AudioPlayback.Position := LyricsState.GetCurrentTime();
@@ -2219,12 +2202,7 @@ end;
 
 procedure TScreenJukebox.OnHide;
 begin
-  // background texture
-  if (Tex_Background.TexNum > 0) then
-  begin
-    glDeleteTextures(1, PGLuint(@Tex_Background.TexNum));
-    Tex_Background.TexNum := 0;
-  end;
+  FreeAndNil(Tex_Background);
   if fShowWebcam then
         begin
           Webcam.Release;
@@ -2248,11 +2226,8 @@ var
   DisplaySec:   integer;
   CurLyricsTime: real;
   VideoFrameTime: Extended;
-  Line: TLyricLine;
-  LastWord: TLyricWord;
-  CurrentTick: cardinal;
-  Diff: real;
 begin
+  Renderer.ClearFrameBuffer(CLEAR_COLOR or CLEAR_DEPTH);
   Background.Draw;
 
   // draw background picture (if any, and if no visualizations)
@@ -2457,8 +2432,8 @@ begin
     (not Lyrics.IsQueueFull) do
   begin
     // add the next line to the queue or a dummy if no more lines are available
-    if (Lyrics.LineCounter <= High(Tracks[0].Lines)) then
-      Lyrics.AddLine(@Tracks[0].Lines[Lyrics.LineCounter])
+    if (Lyrics.LineCounter <= High(CurrentSong.Tracks[0].Lines)) then
+      Lyrics.AddLine(@CurrentSong.Tracks[0].Lines[Lyrics.LineCounter])
     else
       Lyrics.AddLine(nil);
   end;
@@ -2543,15 +2518,10 @@ var
   VideoFile, BgFile: IPath;
   success: boolean;
   Max: integer;
-  CoverPath: IPath;
 begin
 
   // background texture (garbage disposal)
-  if (Tex_Background.TexNum > 0) then
-  begin
-    glDeleteTextures(1, PGLuint(@Tex_Background.TexNum));
-    Tex_Background.TexNum := 0;
-  end;
+  FreeAndNil(Tex_Background);
 
   try
     if high(JukeboxVisibleSongs) < ID then
@@ -2597,6 +2567,9 @@ begin
     Exit;
   end;
 
+  AudioPlayback.Open(CurrentSong.Path.Append(CurrentSong.Audio),nil);
+  AudioPlayback.SetVolume(1.0);
+
   {*
    * == Background ==
    * We have four types of backgrounds:
@@ -2635,15 +2608,15 @@ begin
   begin
     BgFile := CurrentSong.Path.Append(CurrentSong.Background);
     try
-      Tex_Background := Texture.LoadTexture(BgFile);
+      Tex_Background := Renderer.LoadTexture(BgFile);
     except
       Log.LogError('Background could not be loaded: ' + BgFile.ToNative);
-      Tex_Background.TexNum := 0;
+      FreeAndNil(Tex_Background);
     end
   end
   else
   begin
-    Tex_Background.TexNum := 0;
+    FreeAndNil(Tex_Background);
   end;
 
   {*
@@ -2692,13 +2665,13 @@ begin
   LyricsState.UpdateBeats();
 
   // main text
-  Lyrics.Clear(CurrentSong.BPM[0].BPM, CurrentSong.Resolution);
+  Lyrics.Clear(CurrentSong.BPM);
 
   // initialize lyrics by filling its queue
   while (not Lyrics.IsQueueFull) and
-        (Lyrics.LineCounter <= High(Tracks[0].Lines)) do
+        (Lyrics.LineCounter <= High(CurrentSong.Tracks[0].Lines)) do
   begin
-    Lyrics.AddLine(@Tracks[0].Lines[Lyrics.LineCounter]);
+    Lyrics.AddLine(@CurrentSong.Tracks[0].Lines[Lyrics.LineCounter]);
   end;
 
   Max := 9;
@@ -2744,10 +2717,11 @@ begin
 
   CoverPath := CurrentSong.Path.Append(CurrentSong.Cover);
 
-  Statics[StaticCover].Texture := Texture.GetTexture(CoverPath, TEXTURE_TYPE_PLAIN, false);
+  Statics[StaticCover].Texture.Free;
+  Statics[StaticCover].Texture := Renderer.GetTexture(CoverPath, TEXTURE_TYPE_PLAIN, 0);
 
-  if (Statics[StaticCover].Texture.TexNum = 0) then
-    Statics[StaticCover].Texture := Texture.GetTexture(Skin.GetTextureFileName('SongCover'), TEXTURE_TYPE_PLAIN, false);
+  if (Statics[StaticCover].Texture = nil) then
+    Statics[StaticCover].Texture := Renderer.GetTexture(Skin.GetTextureFileName('SongCover'), TEXTURE_TYPE_PLAIN, 0);
 
   Statics[StaticCover].Texture.X := Theme.Jukebox.SongCover.X;
   Statics[StaticCover].Texture.Y := Theme.Jukebox.SongCover.Y;
@@ -2755,7 +2729,8 @@ begin
   Statics[StaticCover].Texture.H := Theme.Jukebox.SongCover.H;
   Statics[StaticCover].Texture.Alpha := 0.7;
 
-  Statics[JukeboxStaticActualSongCover].Texture := Statics[StaticCover].Texture;
+  Statics[JukeboxStaticActualSongCover].Texture.Free;
+  Statics[JukeboxStaticActualSongCover].Texture := Statics[StaticCover].Texture.Clone;
   Statics[JukeboxStaticActualSongCover].Texture.X := Theme.Jukebox.StaticActualSongCover.X;
   Statics[JukeboxStaticActualSongCover].Texture.Y := Theme.Jukebox.StaticActualSongCover.Y;
   Statics[JukeboxStaticActualSongCover].Texture.W := Theme.Jukebox.StaticActualSongCover.W;
@@ -2769,7 +2744,6 @@ var
   I, J, Max: integer;
   SongDesc, Artist, Title, TimeString: UTF8String;
   CurrentTick: integer;
-  Time: real;
 begin
   CurrentTick := SDL_GetTicks() - LastTick;
 
@@ -2881,18 +2855,6 @@ begin
         end;
       end;
     end;
-
-    {
-    DrawLine(Button[JukeboxSongListUp].X,
-                    Button[JukeboxSongListUp].Y + Button[JukeboxSongListUp].H - 1,
-                    Button[JukeboxSongListUp].W,
-                    2);
-
-    DrawLine(Button[JukeboxSongListDown].X,
-                    Button[JukeboxSongListDown].Y - 1,
-                    Button[JukeboxSongListDown].W,
-                    2);
-   }
   end
   else
     SongListVisible := false;
@@ -2901,7 +2863,6 @@ end;
 
 procedure TScreenJukebox.DrawSongMenu;
 var
-  I, Max: integer;
   CurrentTick: integer;
 begin
   CurrentTick := SDL_GetTicks() - LastSongMenuTick;
@@ -2949,4 +2910,3 @@ begin
 end;
 
 end.
-

@@ -322,7 +322,7 @@ begin
   end;
 
   cbWorks := false;
-  // check if the callback was called (poll for max. 6000ms)
+  // check if the callback was called (poll for max. 4500ms)
   for cbPolls := 1 to 450 do
   begin
     // if the test-callback was called it should be aborted now
@@ -341,7 +341,7 @@ begin
   // finally abort the stream
   Pa_CloseStream(stream);
   {$IFEND}
-  
+
   Result := cbWorks;
 end;
 

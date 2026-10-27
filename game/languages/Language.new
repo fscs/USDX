@@ -1,4 +1,4 @@
-﻿[Text]
+[Text]
 ;TODO: LANGUAGE=English
 
 ;TODO: OPTION_VALUE_EASY=Easy
@@ -129,7 +129,6 @@
 ;TODO: SING_OPTIONS_GRAPHICS_DEPTH=Depth
 ;TODO: SING_OPTIONS_GRAPHICS_VISUALIZER=Visualization
 ;TODO: SING_OPTIONS_GRAPHICS_OSCILLOSCOPE=Oscilloscope
-;TODO: SING_OPTIONS_GRAPHICS_LINEBONUS=Line Bonus
 ;TODO: SING_OPTIONS_GRAPHICS_MOVIE_SIZE=Movie size
 
 ;TODO: SING_OPTIONS_SOUND_WHEREAMI=Tools » Options » Sound
@@ -141,7 +140,11 @@
 ;TODO: SING_OPTIONS_SOUND_BEAT_CLICK=Beat click
 ;TODO: SING_OPTIONS_SOUND_THRESHOLD=Threshold
 ;TODO: SING_OPTIONS_SOUND_TWO_PLAYERS_MODE=Two players mode
-;TODO: SING_OPTIONS_SOUND_MUSICAUTOGAIN=Music Gain
+;TODO: SING_OPTIONS_SOUND_MUSICAUTOGAIN=ReplayGain
+;TODO: SING_OPTIONS_SOUND_AUDIOVOLUME=Music Volume
+;TODO: SING_OPTIONS_SOUND_VOCALSVOLUME=Vocals Volume
+;TODO: SING_OPTIONS_SOUND_SFXVOLUME=SFX Volume
+;TODO: SING_OPTIONS_SOUND_BACKGROUNDMUSICVOLUME=BG Music Volume
 ;TODO: SING_OPTIONS_SOUND_PREVIEWVOLUME=Preview Volume
 ;TODO: SING_OPTIONS_SOUND_PREVIEWFADING=Preview Fading
 
@@ -178,7 +181,6 @@
 ;TODO: SING_OPTIONS_ADVANCED_SCREENFADE=Screen Fading
 ;TODO: SING_OPTIONS_ADVANCED_LOADANIMATION=Load Animation
 ;TODO: SING_OPTIONS_ADVANCED_ASKBEFOREDEL=Safety Questions
-;TODO: SING_OPTIONS_ADVANCED_LINEBONUS=Line Bonus
 ;TODO: SING_OPTIONS_ADVANCED_ONSONGCLICK=After Song Select
 ;TODO: SING_OPTIONS_ADVANCED_PARTYPOPUP=Auto PartyMenu
 
@@ -267,10 +269,10 @@
 ;TODO: SING_SCORE_SUPERSTAR=Superstar
 ;TODO: SING_SCORE_ULTRASTAR=Ultrastar
 
-;TODO: SING_TOP_5_CHARTS=Top 5 Players
-;TODO: SING_TOP_5_CHARTS_WHEREAMI=Top 5
-;TODO: SING_TOP_5_CHARTS_CONTINUE=To song selection
-;TODO: SING_TOP_5_CHARTS_SWITCH_DIFFICULTY=Switch difficulty
+;TODO: SING_HIGH_SCORES_TITLE=Top %d Players
+;TODO: SING_HIGH_SCORES_WHEREAMI=Top %d
+;TODO: SING_HIGH_SCORES_CONTINUE=To song selection
+;TODO: SING_HIGH_SCORES_NAVIGATE=Difficulty / Entries
 
 ;TODO: POPUP_PERFECT=perfect!
 ;TODO: POPUP_AWESOME=awesome!
@@ -447,11 +449,11 @@
 ;TODO: STAT_MAIN_DESC=General
 ;TODO: STAT_MAIN_WHEREAMI=Tools » Statistics
 
-;TODO: STAT_OVERVIEW_INTRO=%0:s Statistics.  \n Last Reset at %1:.2d.%2:.2d.%3:d
+;TODO: STAT_OVERVIEW_INTRO=%0:s Statistics.  \n Last Reset at %3:d-%2:.2d-%1:.2d
 ;TODO: STAT_OVERVIEW_SONG=%0:d Songs(%3:d with Video), whereof %1:d already were played  and %2:d were not played yet.\n The most popular Song is %5:s from %4:s.
 ;TODO: STAT_OVERVIEW_PLAYER=Since the last Reset there were/was %0:d different Player(s).\n The best Player is %1:s with an average Score of %2:d Points.\n %3:s did the highest Score with %4:d Points.
 
-;TODO: STAT_FORMAT_DATE=%0:.2d.%1:.2d.%2:d
+;TODO: STAT_FORMAT_DATE=%2:d-%1:.2d-%0:.2d
 
 ;TODO: STAT_DETAIL=Statistics
 ;TODO: STAT_DETAIL_WHEREAMI=Tools » Statistics » Details
@@ -590,10 +592,8 @@
 ;TODO: PARTY_SELECT_MODE=Mode
 ;TODO: PARTY_MODE_CLASSIC=Classic
 ;TODO: PARTY_MODE_CLASSIC_FREE=Classic Free
-;TODO: PARTY_MODE_CHALLENGE=Challenge
 ;TODO: PARTY_MODE_TOURNAMENT=Tournament
 ;TODO: PARTY_MODE_JUKEBOX=Jukebox
-;TODO: PARTY_MODE_NOT_AVAILABLE=Not Available!
 
 ;TODO: PARTY_MODE_TOURNAMENT_PLAYER_DESC=Select number of players and enter names
 ;TODO: PARTY_MODE_TOURNAMENT_PLAYER_WHEREAMI=Party » Tournament » Players
@@ -616,7 +616,7 @@
 ;TODO: EDIT_GENRE=Genre:
 ;TODO: EDIT_YEAR=Year:
 ;TODO: EDIT_CREATOR=Creator:
-;TODO: EDIT_MP3=MP3:
+;TODO: EDIT_MP3=Audio:
 ;TODO: EDIT_COVER=Cover:
 ;TODO: EDIT_BACKGROUND=Background:
 ;TODO: EDIT_VIDEO=Video:
@@ -755,7 +755,6 @@
 
 ;TODO: SONG_MENU_SONG=Song
 ;TODO: SONG_MENU_MEDLEY=Medley
-;TODO: SONG_MENU_EXTRA=Extra
 
 ;TODO: SONG_MENU_NAME_SONG=Song Menu
 ;TODO: SONG_MENU_NAME_MEDLEY=Medley Menu
@@ -807,10 +806,7 @@
 ;TODO: SING_OPTIONS_GAME_SONGMENU=Song Menu
 ;TODO: OPTION_VALUE_ROULETTE=Roulette
 ;TODO: OPTION_VALUE_CHESSBOARD=Chessboard
-;TODO: OPTION_VALUE_CAROUSEL=Carousel
-;TODO: OPTION_VALUE_SLOTMACHINE=Slot Machine
 ;TODO: OPTION_VALUE_LIST=List
-;TODO: OPTION_VALUE_MOSAIC=Tile
 
 ;TODO: SING_OPTIONS_JUKEBOX=Jukebox
 ;TODO: SING_OPTIONS_JUKEBOX_DESC=Jukebox configuration
@@ -886,5 +882,3 @@
 ;TODO: ABOUT_MAIN_WHEREAMI=About
 ;TODO: ABOUT_USDX_CREDITS=Credits
 ;TODO: ABOUT_OVERVIEW=UltraStar Deluxe is a free open-source karaoke game for your PC. The gameplay experience is similar to that of the commercial product SingStar™ by Sony Computer Entertainment, which is exclusively available for the Playstation®. Unlike SingStar™, however, UltraStar Deluxe allows users to create their own songs and sing them on their PC.\nBy publishing the sourcecode, we’ve enabled you to customize the game completly to your heart’s content, desires and particular needs.\nEspecially you are allowed to modify the product as you wish.\n\nCreate your own themes or download content from the community, such as plugins, free songs or code patches for extended features.\nIn party mode it allows up to twelve players to sing along to your favorite music in order to score points, depending on the pitch of the voice and the rhythm of singing.
-
-

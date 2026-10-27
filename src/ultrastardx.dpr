@@ -70,12 +70,10 @@ uses
   dglOpenGL              in 'lib\dglOpenGL\dglOpenGL.pas',
   UMediaCore_SDL         in 'media\UMediaCore_SDL.pas',
 
-  zlib                   in 'lib\zlib\zlib.pas',
   freetype               in 'lib\freetype\freetype.pas',
 
   {$IFDEF UseBass}
   BASS                   in 'lib\bass\delphi\bass.pas',
-  BASS_FX                in 'lib\bass_fx\bass_fx.pas',
   UAudioCore_Bass        in 'media\UAudioCore_Bass.pas',
   {$ENDIF}
   {$IFDEF UsePortaudio}
@@ -117,11 +115,19 @@ uses
       DelphiMcb       in 'lib\midi\DelphiMcb.pas',
       MidiDefs        in 'lib\midi\MidiDefs.pas',
       MidiType        in 'lib\midi\MidiType.pas',
-      MidiOut         in 'lib\midi\MidiOut.pas',
+      {$IFNDEF UseMidiEmu}
+        MidiOut       in 'lib\midi\MidiOut.pas',
+      {$ENDIF}
+      MidiIn          in 'lib\midi\MidiIn.pas',
+      UMidiInput      in 'media\UMidiInput.pas',
     {$ELSE}
       {$IFDEF UsePortMidi}
         MidiOut       in 'lib\portmidi\MidiOut.pas',
       {$ENDIF}
+    {$ENDIF}
+    {$IFDEF UseMidiEmu}
+      MidiOut               in 'lib\midiemu\MidiOut.pas',
+      MidiAudioSourceStream in 'lib\midiemu\MidiAudioSourceStream.pas',
     {$ENDIF}
   {$ENDIF}
 
@@ -134,7 +140,7 @@ uses
   {$ENDIF}
 
   {$IFDEF DARWIN}
-  PseudoThread  in 'macosx\PseudoThread.pas',
+  PseudoThread  in 'macos\PseudoThread.pas',
   {$ENDIF}
 
   //------------------------------
@@ -142,9 +148,9 @@ uses
   //------------------------------
   ULua           in 'lib\Lua\ULua.pas',
   ULuaUtils      in 'lua\ULuaUtils.pas',
-  ULuaGl         in 'lua\ULuaGl.pas',
+  ULuaRenderer   in 'lua\ULuaRenderer.pas',
   ULuaLog        in 'lua\ULuaLog.pas',
-  ULuaTextGL     in 'lua\ULuaTextGL.pas',
+  ULuaText       in 'lua\ULuaText.pas',
   ULuaTexture    in 'lua\ULuaTexture.pas',
   UHookableEvent in 'lua\UHookableEvent.pas',
   ULuaCore       in 'lua\ULuaCore.pas',
@@ -162,8 +168,8 @@ uses
   UMenuButton            in 'menu\UMenuButton.pas',
   UMenuInteract          in 'menu\UMenuInteract.pas',
   UMenuSelectSlide       in 'menu\UMenuSelectSlide.pas',
+  UMenuWidget            in 'menu\UMenuWidget.pas',
   UMenuEqualizer         in 'menu\UMenuEqualizer.pas',
-  UDrawTexture           in 'menu\UDrawTexture.pas',
   UMenuButtonCollection  in 'menu\UMenuButtonCollection.pas',
 
   UMenuBackground        in 'menu\UMenuBackground.pas',
@@ -177,10 +183,11 @@ uses
   //Includes - base
   //------------------------------
   UConfig           in 'base\UConfig.pas',
-  
+
   UCommon           in 'base\UCommon.pas',
+  URenderer         in 'base\URenderer.pas',
+  URenderer_OpenGL  in 'base\URenderer_OpenGL.pas',
   UGraphic          in 'base\UGraphic.pas',
-  UTexture          in 'base\UTexture.pas',
   ULanguage         in 'base\ULanguage.pas',
   UMain             in 'base\UMain.pas',
   UDraw             in 'base\UDraw.pas',
@@ -197,7 +204,6 @@ uses
   ULog              in 'base\ULog.pas',
   UJoystick         in 'base\UJoystick.pas',
   UDataBase         in 'base\UDataBase.pas',
-  UCovers           in 'base\UCovers.pas',
   UCatCovers        in 'base\UCatCovers.pas',
   UFiles            in 'base\UFiles.pas',
   UGraphicClasses   in 'base\UGraphicClasses.pas',
@@ -209,8 +215,10 @@ uses
   UPathUtils        in 'base\UPathUtils.pas',
   UNote             in 'base\UNote.pas',
   UBeatTimer        in 'base\UBeatTimer.pas',
+  UPlayerLayout     in 'base\UPlayerLayout.pas',
+  UUltraQueue       in 'base\UUltraQueue.pas',
 
-  TextGL            in 'base\TextGL.pas',
+  UText             in 'base\UText.pas',
   UUnicodeUtils     in 'base\UUnicodeUtils.pas',
   UUnicodeStringHelper in 'base\uunicodestringhelper',
   UFont             in 'base\UFont.pas',
@@ -234,7 +242,7 @@ uses
 {$IF Defined(MSWINDOWS)}
   UPlatformWindows  in 'base\UPlatformWindows.pas',
 {$ELSEIF Defined(DARWIN)}
-  UPlatformMacOSX   in 'base\UPlatformMacOSX.pas',
+  UPlatformMacOS   in 'base\UPlatformMacOS.pas',
 {$ELSEIF Defined(UNIX)}
   UPlatformLinux    in 'base\UPlatformLinux.pas',
 {$IFEND}
@@ -267,10 +275,6 @@ uses
 {$IFDEF UseBASSInput}
   UAudioInput_Bass          in 'media\UAudioInput_Bass.pas',
 {$ENDIF}
-{$IFDEF UseBASSDecoder}
-  // prefer Bass to FFmpeg if possible
-  UAudioDecoder_Bass        in 'media\UAudioDecoder_Bass.pas',
-{$ENDIF}
 {$IFDEF UseBASSPlayback}
   UAudioPlayback_Bass       in 'media\UAudioPlayback_Bass.pas',
 {$ENDIF}
@@ -299,7 +303,6 @@ uses
   UScreenLoading          in 'screens\UScreenLoading.pas',
   UScreenMain             in 'screens\UScreenMain.pas',
   UScreenName             in 'screens\UScreenName.pas',
-  UScreenLevel            in 'screens\UScreenLevel.pas',
   UScreenSong             in 'screens\UScreenSong.pas',
   UScreenSingController   in 'screens\controllers\UScreenSingController.pas',
   UScreenSingView         in 'screens\views\UScreenSingView.pas',
@@ -321,12 +324,11 @@ uses
   UScreenEdit             in 'screens\UScreenEdit.pas',
   UScreenEditConvert      in 'screens\UScreenEditConvert.pas',
   UScreenOpen             in 'screens\UScreenOpen.pas',
-  UScreenTop5             in 'screens\UScreenTop5.pas',
+  UScreenHighScores       in 'screens\UScreenHighScores.pas',
   UScreenSongMenu         in 'screens\UScreenSongMenu.pas',
   UScreenSongJumpto       in 'screens\UScreenSongJumpto.pas',
   UScreenStatMain         in 'screens\UScreenStatMain.pas',
   UScreenStatDetail       in 'screens\UScreenStatDetail.pas',
-  UScreenCredits          in 'screens\UScreenCredits.pas',
   UScreenPopup            in 'screens\UScreenPopup.pas',
 
   //Includes - Screens PartyMode
@@ -340,19 +342,13 @@ uses
   UWebSDK                 in 'webSDK\UWebSDK.pas',
   //curlobj                 in 'webSDK\cURL\src\curlobj.pas',
 
-{$IFDEF UseOpenCVWrapper}
+  {$IFDEF UseOpenCVWrapper}
   opencv_highgui          in 'lib\openCV3\opencv_highgui.pas',
   opencv_core             in 'lib\openCV3\opencv_core.pas',
   opencv_imgproc          in 'lib\openCV3\opencv_imgproc.pas',
   opencv_types            in 'lib\openCV3\opencv_types.pas',
-{$ELSE}
-  opencv_highgui          in 'lib\openCV\opencv_highgui.pas',
-  opencv_core             in 'lib\openCV\opencv_core.pas',
-  opencv_imgproc          in 'lib\openCV\opencv_imgproc.pas',
-  opencv_types            in 'lib\openCV\opencv_types.pas',
-{$ENDIF}
+  {$ENDIF}
 
-  UMenuStaticList in 'menu\UMenuStaticList.pas',
   UWebcam                 in 'base\UWebcam.pas',
 
   UDLLManager             in 'base\UDLLManager.pas',
@@ -375,6 +371,7 @@ const
 var
   I: Integer;
   Report: string;
+  BackTraceFunction: TBacktraceStrFunc;
 
 begin
   try
@@ -393,13 +390,13 @@ begin
         Report := Report + 'Exception class: ' + E.ClassName + LineEnding +
         'Message: ' + E.Message + LineEnding;
       end;
-      Report := Report + BackTraceStrFunc(ExceptAddr);
+      BackTraceFunction := Platform.GetBackTraceFunction();
+      Report := Report + BackTraceFunction(ExceptAddr);
       for I := 0 to ExceptFrameCount - 1 do
-        Report := Report + LineEnding + BackTraceStrFunc(ExceptFrames[I]);
+        Report := Report + LineEnding + BackTraceFunction(ExceptFrames[I]);
       ShowMessage(Report);
 
       Halt;
     end;
   end;
 end.
-

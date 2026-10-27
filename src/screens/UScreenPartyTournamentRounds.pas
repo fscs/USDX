@@ -43,10 +43,9 @@ uses
   UScreenPartyTournamentWin,
   UScreenSingController,
   UThemes,
-  dglOpenGL,
   sdl2,
   SysUtils,
-  TextGL;
+  UText;
 
 type
 
@@ -92,7 +91,6 @@ type
       function ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean; override;
       procedure OnShow; override;
       function Draw: boolean; override;
-      procedure SetAnimationProgress(Progress: real); override;
 
       procedure DrawLine(X, Y, W, H: real);
       procedure DrawLinePlayer1(X, Y, W, H: real);
@@ -126,6 +124,7 @@ uses
   ULog,
   UMain,
   UMenuText,
+  URenderer,
   UUnicodeUtils;
 
 
@@ -140,7 +139,6 @@ end;
 
 function TScreenPartyTournamentRounds.ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean;
 var
-  p, I: integer;
   SDL_ModState: word;
   Player: integer;
 begin
@@ -646,7 +644,7 @@ end;
 
 function TScreenPartyTournamentRounds.GetPlayers8Final(): NextPlayers;
 var
-  I, Count: integer;
+  Count: integer;
   _Next: NextPlayers;
   Find: boolean;
 begin
@@ -949,8 +947,6 @@ begin
 end;
 
 function TScreenPartyTournamentRounds.Draw: boolean;
-var
-  I, J, Count: integer;
 begin
   DrawBG;
   DrawGrid();
@@ -960,7 +956,6 @@ end;
 procedure TScreenPartyTournamentRounds.DrawGrid();
 var
   I, J: integer;
-  CurrentTick: cardinal;
   MaxPhase: integer;
 begin
   DrawGridBlock1();
@@ -969,7 +964,7 @@ begin
   SetFontStyle(FontResult);
   SetFontSize(SizeResult);
   SetFontItalic(false);
-  glColor4f(ColorResult.R, ColorResult.G, ColorResult.B, 1);
+  SetFontColor(ColorResult.R, ColorResult.G, ColorResult.B, 1);
 
   MaxPhase := PartyTournament.Phase;
   if (PartyTournament.Phase = 3) then
@@ -981,7 +976,7 @@ begin
     for J := 0 to 15 do
     begin
       SetFontPos(PartyTournament.ResultPlayer[I, J].X, PartyTournament.ResultPlayer[I, J].Y);
-      glPrint (PartyTournament.ResultPlayer[I, J].Text);
+      PrintText (PartyTournament.ResultPlayer[I, J].Text);
     end;
   end;
 
@@ -1001,8 +996,8 @@ end;
 procedure TScreenPartyTournamentRounds.DrawGridBlock1();
 var
   X, Y, W, H, Y1, Y2,
-  YQ1, YQ2, YQ3, YQ4, YQ5, YQ6, YQ7, YQ8,
-  YS1, YS2, YS3, YS4, YF1, YF2: real;
+  YQ1, YQ2, YQ3, YQ4,
+  YS1, YS2, YF1: real;
   I: integer;
 begin
   H := 5;
@@ -1015,18 +1010,11 @@ begin
   YQ2 := 0;
   YQ3 := 0;
   YQ4 := 0;
-  YQ5 := 0;
-  YQ6 := 0;
-  YQ7 := 0;
-  YQ8 := 0;
 
   YS1 := 0;
   YS2 := 0;
-  YS3 := 0;
-  YS4 := 0;
 
   YF1 := 0;
-  YF2 := 0;
 
   // left players block
   for I := 0 to 7 do
@@ -1355,8 +1343,8 @@ end;
 procedure TScreenPartyTournamentRounds.DrawGridBlock2();
 var
   X, Y, W, H, Y1, Y2,
-  YQ1, YQ2, YQ3, YQ4, YQ5, YQ6, YQ7, YQ8,
-  YS1, YS2, YS3, YS4, YF1, YF2: real;
+  YQ1, YQ2, YQ3, YQ4,
+  YS1, YS2, YF1: real;
   I: integer;
 begin
 
@@ -1370,18 +1358,11 @@ begin
   YQ2 := 0;
   YQ3 := 0;
   YQ4 := 0;
-  YQ5 := 0;
-  YQ6 := 0;
-  YQ7 := 0;
-  YQ8 := 0;
 
   YS1 := 0;
   YS2 := 0;
-  YS3 := 0;
-  YS4 := 0;
 
   YF1 := 0;
-  YF2 := 0;
 
   // right players block
   for I := 0 to 7 do
@@ -1666,14 +1647,7 @@ end;
 
 procedure TScreenPartyTournamentRounds.DrawLine(X, Y, W, H: real);
 begin
-  glEnable(GL_BLEND);
-  glColor4f(1, 1, 1, 0.4);
-  glbegin(gl_quads);
-   glVertex2f(X, Y);
-   glVertex2f(X, Y + H);
-   glVertex2f(X + W, Y + H);
-   glVertex2f(X + W, Y);
-  glEnd;
+  Renderer.DrawQuad(X, Y, 0, W, H, 1, 1, 1, 0.4);
 end;
 
 procedure TScreenPartyTournamentRounds.DrawLinePlayer1(X, Y, W, H: real);
@@ -1694,14 +1668,7 @@ begin
     B := DB1;
   end;
 
-  glEnable(GL_BLEND);
-  glColor4f(R, G, B, 1);
-  glbegin(gl_quads);
-   glVertex2f(X, Y);
-   glVertex2f(X, Y + H);
-   glVertex2f(X + W, Y + H);
-   glVertex2f(X + W, Y);
-  glEnd;
+  Renderer.DrawQuad(X, Y, 0, W, H, R, G, B, 1);
 end;
 
 procedure TScreenPartyTournamentRounds.DrawLinePlayer2(X, Y, W, H: real);
@@ -1722,24 +1689,7 @@ begin
     B := DB2;
   end;
 
-  glEnable(GL_BLEND);
-  glColor4f(R, G, B, 1);
-  glbegin(gl_quads);
-   glVertex2f(X, Y);
-   glVertex2f(X, Y + H);
-   glVertex2f(X + W, Y + H);
-   glVertex2f(X + W, Y);
-  glEnd;
-end;
-
-procedure TScreenPartyTournamentRounds.SetAnimationProgress(Progress: real);
-begin
-  {if (ScreenSingModi.PlayerInfo.NumPlayers >= 1) then
-    Statics[StaticTeam1].Texture.ScaleW := Progress * ScreenSingModi.PlayerInfo.Playerinfo[0].Score / maxScore;
-  if (ScreenSingModi.PlayerInfo.NumPlayers >= 2) then
-    Statics[StaticTeam2].Texture.ScaleW := Progress * ScreenSingModi.PlayerInfo.Playerinfo[1].Score / maxScore;
-  if (ScreenSingModi.PlayerInfo.NumPlayers >= 3) then
-    Statics[StaticTeam3].Texture.ScaleW := Progress * ScreenSingModi.PlayerInfo.Playerinfo[2].Score / maxScore;}
+  Renderer.DrawQuad(X, Y, 0, W, H, R, G, B, 1);
 end;
 
 end.

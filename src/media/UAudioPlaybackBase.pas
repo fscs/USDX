@@ -42,15 +42,16 @@ uses
   SysUtils;
 
 type
-  FReplayGain = class of TReplayGain;
 
   TAudioPlaybackBase = class(TInterfacedObject, IAudioPlayback)
     protected
 
       OutputDeviceList: TAudioOutputDeviceList;
       MusicStream: TAudioPlaybackStream;
-
-      IReplayGain: FReplayGain;
+      KaraokeMusicStream: TAudioPlaybackStream;
+      FOverallVolume: single;
+      FVocalsShare: single;
+      CurrentFileName: string;
 
       function CreatePlaybackStream(): TAudioPlaybackStream; virtual; abstract;
       procedure ClearOutputDeviceList();
@@ -60,15 +61,18 @@ type
       function OpenStream(const Filename: IPath): TAudioPlaybackStream;
       function OpenStreamBuffer(Buffer: TStream; Format: TAudioFormatInfo): TAudioPlaybackStream;
       function OpenDecodeStream(const Filename: IPath): TAudioDecodeStream;
+      procedure UpdateStreamVolumes;
     public
       constructor Create(); virtual;
       function GetName: string; virtual; abstract;
+      function GetFileName: string;
 
-      function Open(const Filename: IPath): boolean; // true if succeed
+      function Open(const Filename: IPath; const FilenameKaraoke: IPath): boolean; // true if succeed
       procedure Close;
 
       procedure Play;
       procedure Pause;
+      procedure ToggleKaraoke;
       procedure Stop;
       procedure FadeIn(Time: real; TargetVolume: single);
       procedure Fade(Time: real; TargetVolume: single);
@@ -77,6 +81,8 @@ type
 
       procedure SetPosition(Time: real);
       function  GetPosition: real;
+      procedure SetStartTime(Time: real);
+      function GetStartTime: real;
 
       function InitializePlayback: boolean; virtual; abstract;
       function FinalizePlayback: boolean; virtual;
@@ -87,6 +93,10 @@ type
       procedure SetAppVolume(Volume: single); virtual; abstract;
       procedure SetVolume(Volume: single);
       procedure SetLoop(Enabled: boolean);
+      procedure SetVocalsBalance(Balance: single);
+      function GetVocalsBalance: single;
+      function HasInstrumentalTrack: boolean;
+      function GetOverallVolume: single;
 
       procedure Rewind;
       function  Finished: boolean;
@@ -103,8 +113,11 @@ type
 
       // Interface for Visualizer
       function GetPCMData(var Data: TPCMData): Cardinal;
+      function GetFormatInfo(): TAudioFormatInfo;
+
 
       function CreateVoiceStream(Channel: integer; FormatInfo: TAudioFormatInfo): TAudioVoiceStream; virtual; abstract;
+      function CreatePlaybackStreamForSource(SourceStream: TAudioSourceStream): TAudioPlaybackStream;
   end;
 
   TAudioBufferSourceStream = class(TAudioSourceStream)
@@ -135,6 +148,8 @@ uses
 constructor TAudioPlaybackBase.Create();
 begin
   inherited;
+  FOverallVolume := 1.0;
+  FVocalsShare := 1.0;
 end;
 
 { TAudioPlaybackBase }
@@ -142,14 +157,47 @@ end;
 function TAudioPlaybackBase.FinalizePlayback: boolean;
 begin
   FreeAndNil(MusicStream);
+  FreeAndNil(KaraokeMusicStream);
   ClearOutputDeviceList();
   Result := true;
 end;
 
-function TAudioPlaybackBase.Open(const Filename: IPath): boolean;
+function TAudioPlaybackBase.GetFileName: string;
+begin
+  if assigned(MusicStream) then
+    Result := CurrentFileName
+  else
+    Result := '';
+end;
+
+procedure TAudioPlaybackBase.UpdateStreamVolumes;
+var
+  VocalsVolume: single;
+  InstrumentalVolume: single;
+begin
+  if assigned(KaraokeMusicStream) then
+  begin
+    VocalsVolume := FOverallVolume * FVocalsShare;
+    InstrumentalVolume := FOverallVolume * (1 - FVocalsShare);
+  end
+  else
+  begin
+    VocalsVolume := FOverallVolume;
+    InstrumentalVolume := 0;
+  end;
+
+  if assigned(MusicStream) then
+    MusicStream.Volume := VocalsVolume;
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Volume := InstrumentalVolume;
+end;
+
+function TAudioPlaybackBase.Open(const Filename: IPath; const FilenameKaraoke: IPath): boolean;
 begin
   // free old MusicStream
-  MusicStream.Free;
+  FreeAndNil(MusicStream);
+  FreeAndNil(KaraokeMusicStream);
+  CurrentFileName := Filename.ToNative;
 
   MusicStream := OpenStream(Filename);
   if not assigned(MusicStream) then
@@ -157,8 +205,30 @@ begin
     Result := false;
     Exit;
   end;
+  if (Ini.ReplayGain = 1) then
+    MusicStream.ReplayGainEnabled := true;
 
-  if assigned(IReplayGain) and IReplayGain.CanEnable then MusicStream.AddSoundFX(IReplayGain.Create());
+  if assigned(FilenameKaraoke) then
+    KaraokeMusicStream := OpenStream(FilenameKaraoke);
+
+  if assigned(KaraokeMusicStream) then
+  begin
+    if (Ini.ReplayGain = 1) then
+      KaraokeMusicStream.ReplayGainEnabled := true;
+  end;
+
+  FOverallVolume := Ini.AudioVolume / 100;
+  FVocalsShare := Ini.VocalsVolume / 100;
+  if FOverallVolume < 0 then
+    FOverallVolume := 0
+  else if FOverallVolume > 1 then
+    FOverallVolume := 1;
+  if FVocalsShare < 0 then
+    FVocalsShare := 0
+  else if FVocalsShare > 1 then
+    FVocalsShare := 1;
+
+  UpdateStreamVolumes;
 
   Result := true;
 end;
@@ -166,12 +236,29 @@ end;
 procedure TAudioPlaybackBase.Close;
 begin
   FreeAndNil(MusicStream);
+  FreeAndNil(KaraokeMusicStream);
 end;
 
 function TAudioPlaybackBase.OpenDecodeStream(const Filename: IPath): TAudioDecodeStream;
 var
   i: integer;
 begin
+  // If MIDI emulation is enabled, avoid letting generic audio decoders
+  // open .mid/.midi files as PCM. These files should be handled by the
+  // MIDI subsystem (MidiFile/MidiOut) so that our MidiEmu receives events.
+  {$IFDEF UseMidiEmu}
+  try
+    if (LowerCase(ExtractFileExt(Filename.ToNative)) = '.mid') or
+       (LowerCase(ExtractFileExt(Filename.ToNative)) = '.midi') then
+    begin
+      Log.LogInfo('Skipping generic audio decoder for MIDI file (using MidiEmu): ' + Filename.ToNative, 'TAudioPlaybackBase.OpenDecodeStream');
+      Result := nil;
+      Exit;
+    end;
+  except
+    // ignore any exception from ExtractFileExt and continue
+  end;
+  {$ENDIF}
   for i := 0 to AudioDecoders.Count-1 do
   begin
     Result := IAudioDecoder(AudioDecoders[i]).Open(Filename);
@@ -202,12 +289,12 @@ var
 begin
   Result := nil;
 
-  //Log.LogStatus('Loading Sound: "' + Filename + '"', 'TAudioPlayback_Bass.OpenStream');
+  //Log.LogStatus('Loading Sound: "' + Filename + '"', 'TAudioPlayback_Base.OpenStream');
 
   DecodeStream := OpenDecodeStream(Filename);
   if (not assigned(DecodeStream)) then
   begin
-    Log.LogStatus('Could not open "' + Filename.ToNative + '"', 'TAudioPlayback_Bass.OpenStream');
+    Log.LogStatus('Could not open "' + Filename.ToNative + '"', 'TAudioPlayback_Base.OpenStream');
     Exit;
   end;
 
@@ -251,18 +338,45 @@ procedure TAudioPlaybackBase.Play;
 begin
   if assigned(MusicStream) then
     MusicStream.Play();
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Play();
 end;
 
 procedure TAudioPlaybackBase.Pause;
 begin
   if assigned(MusicStream) then
     MusicStream.Pause();
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Pause();
+end;
+
+procedure TAudioPlaybackBase.ToggleKaraoke;
+var
+  TargetPercent: integer;
+  VolumeChanged: boolean;
+begin
+  if not assigned(KaraokeMusicStream) then
+    Exit;
+
+  if FVocalsShare > 0.5 then
+    TargetPercent := 0
+  else
+    TargetPercent := 100;
+
+  VolumeChanged := Ini.VocalsVolume <> TargetPercent;
+  Ini.VocalsVolume := TargetPercent;
+  SetVocalsBalance(TargetPercent / 100);
+
+  if VolumeChanged then
+    Ini.Save;
 end;
 
 procedure TAudioPlaybackBase.Stop;
 begin
   if assigned(MusicStream) then
     MusicStream.Stop();
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Stop();
 end;
 
 function TAudioPlaybackBase.Length: real;
@@ -276,11 +390,7 @@ end;
 function TAudioPlaybackBase.GetPosition: real;
 begin
   if assigned(MusicStream) then
-  begin
-    Result := MusicStream.Position - Ini.AVDelay / 1000;
-    if Result < 0 then
-      Result := 0;
-  end
+    Result := MusicStream.Position - Ini.AVDelay / 1000
   else
     Result := 0;
 end;
@@ -289,12 +399,32 @@ procedure TAudioPlaybackBase.SetPosition(Time: real);
 begin
   if assigned(MusicStream) then
     MusicStream.Position := Time;
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Position := Time;
+end;
+
+function TAudioPlaybackBase.GetStartTime: real;
+begin
+  if assigned(MusicStream) then
+    Result := MusicStream.StartTime
+  else
+    Result := 0;
+end;
+
+procedure TAudioPlaybackBase.SetStartTime(Time: real);
+begin
+  if assigned(MusicStream) then
+    MusicStream.StartTime := Time;
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.StartTime := Time;
 end;
 
 procedure TAudioPlaybackBase.SetSyncSource(SyncSource: TSyncSource);
 begin
   if assigned(MusicStream) then
     MusicStream.SetSyncSource(SyncSource);
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.SetSyncSource(SyncSource);
 end;
 
 procedure TAudioPlaybackBase.Rewind;
@@ -312,26 +442,101 @@ end;
 
 procedure TAudioPlaybackBase.SetVolume(Volume: single);
 begin
-  if assigned(MusicStream) then
-    MusicStream.Volume := Volume;
+  if Volume < 0 then
+    Volume := 0
+  else if Volume > 1 then
+    Volume := 1;
+  FOverallVolume := Volume;
+  UpdateStreamVolumes;
 end;
 
 procedure TAudioPlaybackBase.FadeIn(Time: real; TargetVolume: single);
+var
+  VocalsTarget: single;
+  InstrumentalTarget: single;
 begin
+  if TargetVolume < 0 then
+    TargetVolume := 0
+  else if TargetVolume > 1 then
+    TargetVolume := 1;
+  FOverallVolume := TargetVolume;
+
+  if assigned(KaraokeMusicStream) then
+  begin
+    VocalsTarget := FOverallVolume * FVocalsShare;
+    InstrumentalTarget := FOverallVolume * (1 - FVocalsShare);
+  end
+  else
+  begin
+    VocalsTarget := FOverallVolume;
+    InstrumentalTarget := 0;
+  end;
+
   if assigned(MusicStream) then
-    MusicStream.FadeIn(Time, TargetVolume);
+    MusicStream.FadeIn(Time, VocalsTarget);
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.FadeIn(Time, InstrumentalTarget);
 end;
 
 procedure TAudioPlaybackBase.Fade(Time: real; TargetVolume: single);
+var
+  VocalsTarget: single;
+  InstrumentalTarget: single;
 begin
+  if TargetVolume < 0 then
+    TargetVolume := 0
+  else if TargetVolume > 1 then
+    TargetVolume := 1;
+  FOverallVolume := TargetVolume;
+
+  if assigned(KaraokeMusicStream) then
+  begin
+    VocalsTarget := FOverallVolume * FVocalsShare;
+    InstrumentalTarget := FOverallVolume * (1 - FVocalsShare);
+  end
+  else
+  begin
+    VocalsTarget := FOverallVolume;
+    InstrumentalTarget := 0;
+  end;
+
   if assigned(MusicStream) then
-    MusicStream.Fade(Time, TargetVolume);
+    MusicStream.Fade(Time, VocalsTarget);
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Fade(Time, InstrumentalTarget);
 end;
 
 procedure TAudioPlaybackBase.SetLoop(Enabled: boolean);
 begin
   if assigned(MusicStream) then
     MusicStream.Loop := Enabled;
+  if assigned(KaraokeMusicStream) then
+    KaraokeMusicStream.Loop := Enabled;
+end;
+
+procedure TAudioPlaybackBase.SetVocalsBalance(Balance: single);
+begin
+  if Balance < 0 then
+    Balance := 0
+  else if Balance > 1 then
+    Balance := 1;
+  FVocalsShare := Balance;
+  UpdateStreamVolumes;
+end;
+
+function TAudioPlaybackBase.GetVocalsBalance: single;
+begin
+  Result := FVocalsShare;
+end;
+
+function TAudioPlaybackBase.HasInstrumentalTrack: boolean;
+begin
+  Result := assigned(KaraokeMusicStream);
+end;
+
+function TAudioPlaybackBase.GetOverallVolume: single;
+begin
+  Result := FOverallVolume;
 end;
 
 // Equalizer
@@ -347,10 +552,26 @@ end;
  *}
 function TAudioPlaybackBase.GetPCMData(var data: TPCMData): Cardinal;
 begin
-  if assigned(MusicStream) then
-    Result := MusicStream.GetPCMData(data)
+  if (not assigned(KaraokeMusicStream)) or (FVocalsShare >= 0.5) then
+  begin
+    if assigned(MusicStream) then
+      Result := MusicStream.GetPCMData(data)
+    else
+      Result := 0;
+  end
+  else if assigned(KaraokeMusicStream) then
+    Result := KaraokeMusicStream.GetPCMData(data)
   else
     Result := 0;
+end;
+
+function TAudioPlaybackBase.GetFormatInfo(): TAudioFormatInfo;
+begin
+  Result := nil;
+  if assigned(MusicStream) then
+     Result := MusicStream.GetAudioFormatInfo()
+  else if assigned(KaraokeMusicStream) then
+    Result := KaraokeMusicStream.GetAudioFormatInfo();
 end;
 
 function TAudioPlaybackBase.OpenSound(const Filename: IPath): TAudioPlaybackStream;
@@ -460,6 +681,17 @@ procedure TAudioBufferSourceStream.Close();
 begin
   FreeAndNil(fFormat);
   fStream := nil;
+end;
+
+function TAudioPlaybackBase.CreatePlaybackStreamForSource(SourceStream: TAudioSourceStream): TAudioPlaybackStream;
+begin
+  Result := CreatePlaybackStream();
+  if not Assigned(Result) then
+    Exit;
+  if not Result.Open(SourceStream) then
+  begin
+    FreeAndNil(Result);
+  end;
 end;
 
 end.

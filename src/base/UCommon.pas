@@ -49,6 +49,7 @@ type
   TIntegerDynArray = array of integer;
   TStringDynArray = array of string;
   TUTF8StringDynArray = array of UTF8String;
+  CardinalArray = array of cardinal;
 
 const
   SepWhitespace = [#9, #10, #13, ' ']; // tab, lf, cr, space
@@ -69,10 +70,15 @@ const
 function SplitString(const Str: string; MaxCount: integer = 0; Separators: TSysCharSet = SepWhitespace; RemoveEmpty: boolean = true): TStringDynArray;
 
 function StringInArray(const Value: string; Strings: array of string): Boolean;
+function SplitStringToIntArray(const S: string): TArray<Cardinal>;
+function MergeIntArrayToString(const A: TArray<Cardinal>): string;
 
 function StringDeleteFromArray(var InArray: TIntegerDynArray; const InIndex: integer): Boolean; overload;
 function StringDeleteFromArray(var InStrings: TStringDynArray; const InIndex: integer): Boolean; overload;
 function StringDeleteFromArray(var InStrings: TUTF8StringDynArray; const InIndex: integer): Boolean; overload;
+
+type
+  TPianoKeyArray = array of Cardinal;
 
 type
   TRGB = record
@@ -121,6 +127,7 @@ function GetArrayIndex(const SearchArray: array of integer; Value: integer): int
 
 function ParseResolutionString(const ResolutionString: string; out x, y: integer): boolean;
 function BuildResolutionString(x,y: integer): string;
+function RandomPermute(Num: integer): CardinalArray;
 
 implementation
 
@@ -131,8 +138,43 @@ uses
   {$ENDIF}
   sdl2,
   UFilesystem,
+  {$IFNDEF MSWINDOWS}
+  UGraphic,
+  {$ENDIF}
   UMain,
   UUnicodeUtils;
+
+function SplitStringToIntArray(const S: string): TArray<Cardinal>;
+var
+  StrList: TStringList;
+  I: Integer;
+begin
+  Result := nil;
+  StrList := TStringList.Create;
+  try
+    StrList.CommaText := S;
+    SetLength(Result, StrList.Count);
+    for I := 0 to StrList.Count - 1 do
+      Result[I] := StrToInt(StrList[I]);
+  finally
+    StrList.Free;
+  end;
+end;
+
+function MergeIntArrayToString(const A: TArray<Cardinal>): string;
+var
+  StrList: TStringList;
+  I: Integer;
+begin
+  StrList := TStringList.Create;
+  try
+    for I := 0 to High(A) do
+      StrList.Add(A[I].ToString);
+    Result := StrList.CommaText;
+  finally
+    StrList.Free;
+  end;
+end;
 
 function StringInArray(const Value: string; Strings: array of string): Boolean;
 var I: Integer;
@@ -252,7 +294,7 @@ function setlocale(category: integer; locale: pchar): pchar; cdecl; external 'c'
 
 {$IFEND}
 
-// In Linux and maybe MacOSX some units (like cwstring) call setlocale(LC_ALL, '')
+// In Linux and maybe macOS some units (like cwstring) call setlocale(LC_ALL, '')
 // to set the language/country specific locale (e.g. charset) for this application.
 // Unfortunately, LC_NUMERIC is set by this call too.
 // It defines the decimal-separator and other country-specific numeric settings.
@@ -264,7 +306,7 @@ function setlocale(category: integer; locale: pchar): pchar; cdecl; external 'c'
 // Note: The behaviour of Pascal parsing functions (e.g. strtofloat()) is not
 //   changed by this because it doesn't use the locale-settings.
 // TODO:
-// - Check if this is needed in MacOSX (at least the locale is set in cwstring)
+// - Check if this is needed in macOS (at least the locale is set in cwstring)
 // - Find out which libs are concerned by this problem.
 //   If only projectM is concerned by this problem set and restore the numeric locale
 //   for each call to projectM instead of changing it globally.
@@ -399,8 +441,6 @@ var
  *)
 procedure _ConsoleWriteLn(const aString: string); {$IFDEF HasInline}inline;{$ENDIF}
 begin
-  if Log <> nil then
-    Log.LogConsole(aString);
   {$IFDEF MSWINDOWS}
   // sanity check to avoid crashes with writeln()
   if IsConsole and HasConsole then
@@ -506,6 +546,8 @@ end;
 procedure ShowMessage(const msg: String; msgType: TMessageType);
 {$IFDEF MSWINDOWS}
 var Flags: cardinal;
+{$ELSE}
+var Flags: UInt32;
 {$ENDIF}
 begin
 {$IF Defined(MSWINDOWS)}
@@ -517,6 +559,11 @@ begin
   MessageBox(0, PChar(msg), PChar(USDXVersionStr()), Flags);
 {$ELSE}
   ConsoleWriteln(msg);
+  case msgType of
+    mtInfo:  Flags := SDL_MESSAGEBOX_INFORMATION;
+    mtError: Flags := SDL_MESSAGEBOX_ERROR;
+  end;
+  SDL_ShowSimpleMessageBox(Flags, PChar(USDXVersionStr()), PChar(msg), Screen);
 {$IFEND}
 end;
 
@@ -737,6 +784,26 @@ begin
     FreeMem(PMemAlignHeader(PtrUInt(P) - SizeOf(TMemAlignHeader))^);
 end;
 {$WARNINGS ON}
+
+function RandomPermute(Num: integer): CardinalArray;
+var
+  Ordered: array of cardinal;
+  Idx, i: cardinal;
+begin
+  Result := nil;
+  if Num <= 0 then
+    Exit;
+  SetLength(Ordered, Num);
+  SetLength(Result, Num);
+  for i := 0 to Num-1 do Ordered[i] := i;
+  for i := 0 to Num-1 do
+  begin
+    Idx := Random(Num);
+    Result[i] := Ordered[Idx];
+    Delete(Ordered, Idx, 1);
+    Dec(Num);
+  end;
+end;
 
 
 initialization

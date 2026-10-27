@@ -66,8 +66,6 @@ const
   LOG_LEVEL_DEFAULT      = LOG_LEVEL_WARN;
   LOG_FILE_LEVEL_DEFAULT = LOG_LEVEL_ERROR;
 
-  CONSOLE_SCROLLBACK_SIZE = 512;
-
 type
   TLog = class
   private
@@ -75,7 +73,6 @@ type
     LogFileOpened:       boolean;
     BenchmarkFile:       TextFile;
     BenchmarkFileOpened: boolean;
-    ConsoleBuffer: TStringList; // stores logged messages for in-game console, capped to CONSOLE_SCROLLBACK_SIZE
     Lock:                TRTLCriticalSection;
 
     LogLevel: integer;
@@ -83,8 +80,6 @@ type
     LogFileLevel: integer;
 
     procedure LogToFile(const Text: string);
-
-    function GetConsoleCount: integer;
 
   public
     BenchmarkTimeStart:   array[0..31] of real;
@@ -111,27 +106,21 @@ type
     function GetLogFileLevel(): integer;
 
     procedure LogMsg(const Text: string; Level: integer); overload;
-    procedure LogMsg(const Msg, Context: string; Level: integer); overload; {$IFDEF HasInline}inline;{$ENDIF}
-    procedure LogDebug(const Msg, Context: string); {$IFDEF HasInline}inline;{$ENDIF}
-    procedure LogInfo(const Msg, Context: string); {$IFDEF HasInline}inline;{$ENDIF}
-    procedure LogStatus(const Msg, Context: string); {$IFDEF HasInline}inline;{$ENDIF}
-    procedure LogWarn(const Msg, Context: string); {$IFDEF HasInline}inline;{$ENDIF}
-    procedure LogError(const Text: string); overload; {$IFDEF HasInline}inline;{$ENDIF}
-    procedure LogError(const Msg, Context: string); overload; {$IFDEF HasInline}inline;{$ENDIF}
+    procedure LogMsg(const Msg, Context: string; Level: integer); overload;
+    procedure LogDebug(const Msg, Context: string);
+    procedure LogInfo(const Msg, Context: string);
+    procedure LogStatus(const Msg, Context: string);
+    procedure LogWarn(const Msg, Context: string);
+    procedure LogError(const Text: string); overload;
+    procedure LogError(const Msg, Context: string); overload;
     //Critical Error (Halt + MessageBox)
-    procedure LogCritical(const Msg, Context: string); {$IFDEF HasInline}inline;{$ENDIF}
-    procedure CriticalError(const Text: string); {$IFDEF HasInline}inline;{$ENDIF}
+    procedure LogCritical(const Msg, Context: string);
+    procedure CriticalError(const Text: string);
 
     // voice
     procedure LogVoice(SoundNr: integer);
     // buffer
     procedure LogBuffer(const buf : Pointer; const bufLength : Integer; const filename : IPath);
-
-    // console
-    property ConsoleCount: integer read GetConsoleCount;
-    function GetConsole(const index: integer; FromTheBeginning: boolean = false): string;
-    procedure LogConsole(const Text: string);
-    procedure ClearConsoleLog;
 
   end;
 
@@ -145,6 +134,7 @@ implementation
 uses
   SysUtils,
   DateUtils,
+  UIni,
   URecord,
   UMain,
   UMusic,  
@@ -172,7 +162,6 @@ end;
 
 constructor TLog.Create;
 begin
-  ConsoleBuffer := TStringList.Create;
   inherited;
   LogLevel := LOG_LEVEL_DEFAULT;
   LogFileLevel := LOG_FILE_LEVEL_DEFAULT;
@@ -190,7 +179,6 @@ begin
   if LogFileOpened then
     CloseFile(LogFile);
 
-  ConsoleBuffer.Free;
   inherited;
 end;
 
@@ -257,7 +245,7 @@ begin
 
       if (Minutes = 0) and (Seconds = 0) then begin
         MilisecondsS := IntToStr(Miliseconds);
-        ValueText := MilisecondsS + ' miliseconds';
+        ValueText := MilisecondsS + ' milliseconds';
       end;
 
       if (Minutes = 0) and (Seconds >= 1) then begin
@@ -292,6 +280,12 @@ begin
 end;
 
 procedure TLog.LogToFile(const Text: string);
+
+  procedure WriteLogLine(const Line: string);
+  begin
+    WriteLn(LogFile, FormatDateTime('yyyy-mm-dd hh:nn:ss.zzz', Now) + ' ' + Line);
+  end;
+
 begin
   EnterCriticalSection(Lock);
   if (FileOutputEnabled and not LogFileOpened) then
@@ -306,9 +300,9 @@ begin
     //If File is opened write Date to Error File
     if (LogFileOpened) then
     begin
-      WriteLn(LogFile, Title + ' Error Log');
-      WriteLn(LogFile, 'Date: ' + DatetoStr(Now) + ' Time: ' + TimetoStr(Now));
-      WriteLn(LogFile, '-------------------');
+      WriteLogLine(Title + ' Error Log');
+      WriteLogLine('Date: ' + DatetoStr(Now) + ' Time: ' + TimetoStr(Now));
+      WriteLogLine('-------------------');
 
       Flush(LogFile);
     end;
@@ -317,7 +311,7 @@ begin
   if LogFileOpened then
   begin
     try
-      WriteLn(LogFile, Text);
+      WriteLogLine(Text);
       Flush(LogFile);
     except
       LogFileOpened := false;
@@ -369,7 +363,6 @@ begin
     if (Level <= LogLevel) then
     begin
       DebugWriteLn(LogMsg);
-      LogConsole(LogMsg);
     end;
     
     // write message to log-file
@@ -395,7 +388,9 @@ end;
 
 procedure TLog.LogDebug(const Msg, Context: string);
 begin
-  LogMsg(Msg, Context, LOG_LEVEL_DEBUG);
+  if {$IFDEF DEBUG_MODE}true or {$ENDIF}boolean(Ini.Debug) then begin
+    LogMsg(Msg, Context, LOG_LEVEL_DEBUG);
+  end
 end;
 
 procedure TLog.LogInfo(const Msg, Context: string);
@@ -547,36 +542,4 @@ begin
   end;
 end;
 
-procedure TLog.ClearConsoleLog;
-begin
-  EnterCriticalSection(Lock);
-  ConsoleBuffer.Clear;
-  LeaveCriticalSection(Lock);
-end;
-
-function TLog.GetConsole(const index: integer; FromTheBeginning: boolean = false): string;
-begin
-  EnterCriticalSection(Lock);
-  if FromTheBeginning then Result := ConsoleBuffer[index]
-  else Result := ConsoleBuffer[ConsoleBuffer.Count-1-index];
-  LeaveCriticalSection(Lock);
-end;
-
-function TLog.GetConsoleCount: integer;
-begin
-  EnterCriticalSection(Lock);
-  Result := ConsoleBuffer.Count;
-  LeaveCriticalSection(Lock);
-end;
-
-procedure TLog.LogConsole(const Text: string);
-begin
-  EnterCriticalSection(Lock);
-  ConsoleBuffer.Insert(0, Text);
-  if ConsoleBuffer.Count > CONSOLE_SCROLLBACK_SIZE then ConsoleBuffer.Capacity:=CONSOLE_SCROLLBACK_SIZE;
-  LeaveCriticalSection(Lock);
-end;
-
 end.
-
-

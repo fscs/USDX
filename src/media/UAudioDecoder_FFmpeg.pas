@@ -79,11 +79,6 @@ uses
 const
   MAX_AUDIOQ_SIZE = (5 * 16 * 1024);
 
-const
-  // TODO: The factor 3/2 might not be necessary as we do not need extra
-  // space for synchronizing as in the tutorial.
-  AUDIO_BUFFER_SIZE = (192000 * 3) div 2;
-
 type
   TFFmpegDecodeStream = class(TAudioDecodeStream)
     private
@@ -106,6 +101,7 @@ type
       fSeekPos:     double;    // stream position to seek for (in secs) (locked by StateLock)
       fSeekFlush:   boolean;   // true if the buffers should be flushed after seeking (locked by StateLock)
       SeekFinishedCond: PSDL_Cond;
+      fStartTime:   int64; // start time in PTS
 
       fLoop: boolean; // (locked by StateLock)
 
@@ -138,7 +134,7 @@ type
       // state-vars for AudioCallback (locked by DecoderLock)
       fAudioBufferPos:  integer;
       fAudioBufferSize: integer;
-      fAudioBuffer:     PByteArray;
+      fAudioBuffer:     PByte;
       fAudioBufferFrame: PAVFrame;
 
       fFilename: IPath;
@@ -149,6 +145,8 @@ type
       function IsSeeking(): boolean;
       function IsQuit(): boolean;
       function GetLoopInternal(): boolean;
+      procedure PutSkippedSamples(pkt: PAVPacket; DeltaPTS: int64);
+      function GetSkippedSamples(pkt: PAVPacket): int64;
 
       procedure Reset();
 
@@ -159,10 +157,12 @@ type
 
       function DecodeFrame(): integer;
       procedure FlushCodecBuffers();
+      procedure FlushSwrContext();
       procedure PauseDecoderUnlocked();
       procedure ResumeDecoderUnlocked();
       procedure PauseDecoder();
       procedure ResumeDecoder();
+      procedure ParseReplayGain();
     public
       constructor Create();
       destructor Destroy(); override;
@@ -174,6 +174,8 @@ type
       function GetAudioFormatInfo(): TAudioFormatInfo; override;
       function GetPosition: real;            override;
       procedure SetPosition(Time: real);     override;
+      function GetStartTime: real;           override;
+      procedure SetStartTime(Time: real);    override;
       function GetLoop(): boolean;           override;
       procedure SetLoop(Enabled: boolean);   override;
       function IsEOF(): boolean;             override;
@@ -232,6 +234,7 @@ begin
   fErrorState := false;
   fLoop := false;
   fQuitRequest := false;
+  fStartTime := 0;
 
   fAudioPaketSize := 0;
   fAudioPaketSilence := 0;
@@ -328,6 +331,10 @@ begin
 
   fAudioStream := PPAVStream(PtrUInt(fFormatCtx.streams) + fAudioStreamIndex * Sizeof(pointer))^;
   fAudioStreamPos := 0;
+  if (fAudioStream^.start_time <> AV_NOPTS_VALUE) then
+    fStartTime := fAudioStream^.start_time
+  else
+    fStartTime := 0;
 
 {$IF LIBAVFORMAT_VERSION < 59000000}
   CodecID := fAudioStream^.codec^.codec_id;
@@ -398,7 +405,10 @@ begin
 
   // now initialize the audio-format
   PackedSampleFormat := av_get_packed_sample_fmt(fCodecCtx^.sample_fmt);
-  if (PackedSampleFormat <> fCodecCtx^.sample_fmt) then
+  if ((PackedSampleFormat <> fCodecCtx^.sample_fmt)
+
+    // BASS expects the audio provided by the decoder to be in 16 bit signed integer or 32 bit float format
+    {$IFDEF UseBASSPlayback} or (not ((fCodecCtx^.sample_fmt = AV_SAMPLE_FMT_S16) or (fCodecCtx^.sample_fmt = AV_SAMPLE_FMT_FLT))){$ENDIF}) then
   begin
     // There is no point in leaving PackedSampleFormat as is.
     // av_audio_resample_init as used by TAudioConverter_FFmpeg will internally
@@ -443,6 +453,8 @@ begin
     SampleFormat
   );
   fBytesPerSample := av_get_bytes_per_sample(PackedSampleFormat) * NumChannels;
+  if (Ini.ReplayGain = 1) then
+    ParseReplayGain();
   fPacketQueue := TPacketQueue.Create();
 
   // finally start the decode thread
@@ -609,9 +621,74 @@ begin
   SDL_UnlockMutex(fStateLock);
 end;
 
+function TFFmpegDecodeStream.GetStartTime: real;
+begin
+  SDL_LockMutex(fStateLock);
+  if (fAudioStream <> nil) then
+    Result := fStartTime * av_q2d(fAudioStream^.time_base)
+  else
+    Result := 0;
+  SDL_UnlockMutex(fStateLock);
+end;
+
+procedure TFFMpegDecodeStream.SetStartTime(Time: real);
+begin
+  SDL_LockMutex(fStateLock);
+  if (fAudioStream <> nil) then
+    fStartTime := Max(fAudioStream^.start_time, Round(Time / av_q2d(fAudioStream^.time_base)));
+  SDL_UnlockMutex(fStateLock);
+end;
+
 function TFFmpegDecodeStream.GetLoopInternal(): boolean;
 begin
   Result := fLoop;
+end;
+
+procedure TFFmpegDecodeStream.PutSkippedSamples(pkt: PAVPacket; DeltaPTS: int64);
+var
+  data: pcuint8;
+  SkippedSamples: cuint32;
+begin
+
+  // Calculate the number of samples for the decoder to skip based on the delta timestamp
+  SkippedSamples := Round(DeltaPTS * av_q2d(fAudioStream^.time_base) * fCodecCtx^.sample_rate);
+  data := av_packet_new_side_data(pkt, AV_PKT_DATA_SKIP_SAMPLES, 10);
+  if (data = nil) then
+    Exit;
+
+  // FFmpeg's AVPacket side data uses a generic binary API. The required data format varies
+  // based on the side data type. The skip samples type is 10 bytes, formatted as follows:
+  //   Number of samples to skip from beginning of packet: 32 bit unsigned integer, little endian
+  //   Number of samples to skip from end of packet: 32 bit unsigned integer, little endian
+  //   Reason for start skip (no format given): 8 bit unsigned integer
+  //   Reason for end skip (0=padding silence, 1=convergence): 8 bit unsigned integer
+
+  {$IFDEF ENDIAN_BIG}
+  SkippedSamples := swap(SkippedSamples);
+  {$ENDIF}
+  puint32(data)^ := SkippedSamples;
+  puint32(data + 4)^ := 0;
+  (data + 8)^ := 0;
+  (data + 9)^ := 0;
+  // data is owned by FFmpeg (should not be freed by us)
+end;
+
+function TFFmpegDecodeStream.GetSkippedSamples(pkt: PAVPacket): int64;
+var
+  size: csize_t;
+  data: pcuint8;
+  SkippedSamples: cuint32;
+begin
+  Result := 0;
+  data := av_packet_get_side_data(pkt, AV_PKT_DATA_SKIP_SAMPLES, @size);
+  if (data = nil) then
+    Exit;
+  SkippedSamples := pcuint32(data)^;
+  {$IFDEF ENDIAN_BIG}
+  SkippedSamples := swap(SkippedSamples);
+  {$ENDIF}
+  Result := Round(SkippedSamples / (av_q2d(fAudioStream^.time_base) * fCodecCtx^.sample_rate));
+  // data is owned by FFmpeg (should not be freed by us)
 end;
 
 function TFFmpegDecodeStream.GetLoop(): boolean;
@@ -662,25 +739,14 @@ begin
     fErrorState := false;
 
     // do not seek if we are already at the correct position.
-    // This is important especially for seeking to position 0 if we already are
-    // at the beginning. Although seeking with AVSEEK_FLAG_BACKWARD for pos 0 works,
-    // it is still a bit choppy (although much better than w/o AVSEEK_FLAG_BACKWARD).
     if (Time = fAudioStreamPos) then
       Exit;    
 
     // configure seek parameters
     fSeekPos := Time;
     fSeekFlush := Flush;
-    fSeekFlags := AVSEEK_FLAG_ANY;
+    fSeekFlags := AVSEEK_FLAG_BACKWARD;
     fSeekRequest := true;
-
-    // Note: the BACKWARD-flag seeks to the first position <= the position
-    // searched for. Otherwise e.g. position 0 might not be seeked correct.
-    // For some reason ffmpeg sometimes doesn't use position 0 but the key-frame
-    // following. In streams with few key-frames (like many flv-files) the next
-    // key-frame after 0 might be 5secs ahead.
-    if (Time <= fAudioStreamPos) then
-      fSeekFlags := fSeekFlags or AVSEEK_FLAG_BACKWARD;
 
     // send a reuse signal in case the parser was stopped (e.g. because of an EOF)
     SDL_CondSignal(fParserIdleCond);
@@ -731,9 +797,9 @@ var
   ErrorCode: integer;
   StartSilence: double;       // duration of silence at start of stream
   StartSilencePtr: PDouble;  // pointer for the EMPTY status packet 
-  fileSize: integer;
   urlError: integer;
   errnum: integer;
+  SeekCheckPTS: boolean;
 
   // Note: pthreads wakes threads waiting on a mutex in the order of their
   // priority and not in FIFO order. SDL does not provide any option to
@@ -759,6 +825,7 @@ var
 begin
   Result := true;
   Packet := nil;
+  SeekCheckPTS := false;
 
   while LockParser() do
   begin
@@ -770,8 +837,11 @@ begin
         // first try: seek on the audio stream
         SeekTarget := Round(fSeekPos / av_q2d(fAudioStream^.time_base));
         StartSilence := 0;
-        if (SeekTarget < fAudioStream^.start_time) then
-          StartSilence := (fAudioStream^.start_time - SeekTarget) * av_q2d(fAudioStream^.time_base);
+        if (SeekTarget < fStartTime) then
+        begin
+          StartSilence := (fStartTime - SeekTarget) * av_q2d(fAudioStream^.time_base);
+          SeekTarget := fStartTime;
+        end;
         ErrorCode := av_seek_frame(fFormatCtx, fAudioStreamIndex, SeekTarget, fSeekFlags);
 
         if (ErrorCode < 0) then
@@ -779,8 +849,11 @@ begin
           // second try: seek on the default stream (necessary for flv-videos and some ogg-files)
           SeekTarget := Round(fSeekPos * AV_TIME_BASE);
           StartSilence := 0;
-          if (SeekTarget < fFormatCtx^.start_time) then
-            StartSilence := (fFormatCtx^.start_time - SeekTarget) / AV_TIME_BASE;
+          if (SeekTarget < fStartTime) then
+          begin
+            StartSilence := (fStartTime - SeekTarget) / AV_TIME_BASE;
+            SeekTarget := fStartTime;
+          end;
           ErrorCode := av_seek_frame(fFormatCtx, -1, SeekTarget, fSeekFlags);
         end;
 
@@ -809,6 +882,8 @@ begin
               fAudioPaketSize := 0;
               fAudioPaketSilence := 0;
               FlushCodecBuffers();
+              if (fSwrContext <> nil) then
+                FlushSwrContext();
               
               // Set preliminary stream position. The position will be set to
               // the correct value as soon as the first packet is decoded.
@@ -832,6 +907,7 @@ begin
 
           fSeekRequest := false;
           SDL_CondBroadcast(SeekFinishedCond);
+          SeekCheckPTS := true;
         finally
           ResumeDecoderUnlocked();
           SDL_UnlockMutex(fStateLock);
@@ -886,6 +962,16 @@ begin
 
       if (Packet^.stream_index = fAudioStreamIndex) then
       begin
+        if (SeekCheckPTS) then
+        begin
+
+          // This is the first packet returned by the demuxer after a seek operation.
+          // If the packet timestamp is not exactly what was requested, then instruct
+          // the decoder to skip the extra samples in the output.
+          if (Packet^.pts < SeekTarget) then
+            PutSkippedSamples(Packet, SeekTarget - Packet^.pts);
+          SeekCheckPTS := false;
+        end;
         fPacketQueue.Put(Packet);
         Packet := nil;
       end
@@ -936,6 +1022,57 @@ begin
   SDL_UnlockMutex(fStateLock);
 end;
 
+procedure TFFMpegDecodeStream.ParseReplayGain();
+var
+  Metadata: PAVDictionary;
+  DictEntry: PAVDictionaryEntry;
+  IsOgg: boolean;
+  GainTag: AnsiString;
+  PeakTag: AnsiString;
+begin
+
+  (*  FFmpeg stores metadata at the stream level for the Ogg container, and
+   *  at the container level for all other containers *)
+  IsOgg := CompareStr(fFormatCtx^.iformat^.name, 'ogg') = 0;
+  if (IsOgg) then
+  begin
+    if (fAudioStream = nil) then
+      Exit;
+    Metadata := fAudioStream^.metadata;
+  end
+  else
+  begin
+    if (fFormatCtx = nil) then
+      Exit;
+    Metadata := fFormatCtx^.metadata;
+  end;
+  if (Metadata = nil) then
+    Exit;
+
+  DictEntry := av_dict_get(Metadata, 'REPLAYGAIN_TRACK_GAIN', nil, 0);
+  if (DictEntry <> nil) then
+  begin
+    GainTag := DictEntry^.value;
+
+    DictEntry := av_dict_get(Metadata, 'REPLAYGAIN_TRACK_PEAK', nil, 0);
+    if (DictEntry <> nil) then
+      PeakTag := DictEntry^.value;
+    SetReplayGain(GainTag, PeakTag);
+  end
+
+  // Also support R128_TRACK_GAIN tag for Opus files
+  {$IF LIBAVFORMAT_VERSION < 59000000}
+  else if (IsOgg and (fAudioStream^.codec^.codec_id = AV_CODEC_ID_OPUS)) then
+  {$ELSE}
+  else if (IsOgg and (fAudioStream^.codecpar^.codec_id = AV_CODEC_ID_OPUS)) then
+  {$ENDIF}
+  begin
+    DictEntry := av_dict_get(Metadata, 'R128_TRACK_GAIN', nil, 0);
+    if (DictEntry <> nil) then
+      SetReplayGainR128(DictEntry^.value);
+  end;
+end;
+
 procedure TFFmpegDecodeStream.FlushCodecBuffers();
 {$IF LIBAVFORMAT_VERSION >= 59000000}
 var
@@ -975,6 +1112,19 @@ begin
   end;
 end;
 
+procedure TFFmpegDecodeStream.FlushSwrContext();
+var
+  I, NumSamples: integer;
+  Buffer: array[0..1023] of Byte;
+  BufferPtr: PByte;
+begin
+  BufferPtr := @Buffer[0];
+  NumSamples := SizeOf(Buffer) div fBytesPerSample;
+  repeat
+    I := swr_convert(fSwrContext, BufferPtr, NumSamples, nil, 0);
+  until I <= 0;
+end;
+
 function TFFmpegDecodeStream.DecodeFrame(): integer;
 var
   Packet: PAVPacket;
@@ -986,6 +1136,7 @@ var
   {$IFDEF DebugFFmpegDecode}
   TmpPos: double;
   {$ENDIF}
+  PTS: int64;
 begin
   Result := -1;
   Packet := nil;
@@ -993,26 +1144,18 @@ begin
   if (EOF) then
     Exit;
 
+  if (fAudioPaketSilence > 0) then
+  begin
+    Result := 0;
+    Exit;
+  end;
+
   while(true) do
   begin
-
-    // for titles with start_time > 0 we have to generate silence
-    // until we reach the pts of the first data packet.
-    if (fAudioPaketSilence > 0) then
-    begin
-      DataSize := Min(fAudioPaketSilence, AUDIO_BUFFER_SIZE);
-      FillChar(fAudioBuffer[0], DataSize, 0);
-      Dec(fAudioPaketSilence, DataSize);
-      fAudioStreamPos := fAudioStreamPos + DataSize / fFormatInfo.BytesPerSec;
-      Result := DataSize;
-      Exit;
-    end;
 
     // read packet data
     while (fAudioPaketSize > 0) do
     begin
-      DataSize := AUDIO_BUFFER_SIZE;
-
       got_frame_ptr := avcodec_receive_frame(fCodecCtx, fAudioBufferFrame);
       if (got_frame_ptr = AVERROR(EAGAIN)) then
         PaketDecodedSize := fAudioPaketSize
@@ -1022,7 +1165,7 @@ begin
       if(got_frame_ptr <> 0) then
       begin
         DataSize := fAudioBufferFrame.nb_samples * fBytesPerSample;
-        fAudioBuffer := PByteArray(fAudioBufferFrame.data[0]);
+        fAudioBuffer := fAudioBufferFrame.data[0];
       end
       else
         DataSize := 0;
@@ -1094,6 +1237,9 @@ begin
           SilenceDuration := PDouble(fPacketQueue.GetStatusInfo(Packet))^;
           fAudioPaketSilence := Round(SilenceDuration * fFormatInfo.SampleRate) * fFormatInfo.FrameSize;
           fPacketQueue.FreeStatusInfo(Packet);
+          av_packet_free(@Packet);
+          Result := 0;
+          Exit;
         end
         else
         begin
@@ -1112,10 +1258,16 @@ begin
     // if available, update the stream position to the presentation time of this package
     if(Packet^.pts <> AV_NOPTS_VALUE) then
     begin
+      PTS := Packet^.pts;
+
+      // If skipped samples are set due to a seek operation, take this into account when
+      // updating the stream position
+      if (Packet^.side_data_elems > 0) then
+        Inc(PTS, GetSkippedSamples(Packet));
       {$IFDEF DebugFFmpegDecode}
       TmpPos := fAudioStreamPos;
       {$ENDIF}
-      fAudioStreamPos := av_q2d(fAudioStream^.time_base) * Packet^.pts;
+      fAudioStreamPos := av_q2d(fAudioStream^.time_base) * PTS;
       {$IFDEF DebugFFmpegDecode}
       DebugWriteln('Timestamp: ' + floattostrf(fAudioStreamPos, ffFixed, 15, 3) + ' ' +
                    '(Calc: ' + floattostrf(TmpPos, ffFixed, 15, 3) + '), ' +
@@ -1175,7 +1327,7 @@ begin
     begin
       BufferPtr := @Buffer[0];
       BufferPos := swr_convert(fSwrContext, BufferPtr, BufferSize div fBytesPerSample,
-                               fAudioBufferFrame.extended_data^, 0);
+                               fAudioBufferFrame.extended_data, 0);
       if (BufferPos < 0) then // might happen if out of memory
         Exit;
       BufferPos := BufferPos * fBytesPerSample;
@@ -1203,11 +1355,23 @@ begin
 
       RemainByteCount := BufferSize - BufferPos;
 
+      // for titles with start_time > 0 we have to generate silence
+      // until we reach the pts of the first data packet.
+      if (fAudioPaketSilence > 0) then
+      begin
+        CopyByteCount := Min(fAudioPaketSilence, RemainByteCount);
+        FillChar(Buffer[BufferPos], CopyByteCount, 0);
+        Dec(fAudioPaketSilence, CopyByteCount);
+        Inc(BufferPos, CopyByteCount);
+        fAudioStreamPos := fAudioStreamPos + CopyByteCount / fFormatInfo.BytesPerSec;
+        continue;
+      end;
+
       if (fSwrContext <> nil) then
       begin
         BufferPtr := @Buffer[BufferPos];
         CopyByteCount := swr_convert(fSwrContext, BufferPtr, RemainByteCount div fBytesPerSample,
-                                     fAudioBufferFrame.extended_data^, fAudioBufferFrame.nb_samples);
+                                     fAudioBufferFrame.extended_data, fAudioBufferFrame.nb_samples);
         if (CopyByteCount < 0) then
           Exit;
         CopyByteCount := CopyByteCount * fBytesPerSample;

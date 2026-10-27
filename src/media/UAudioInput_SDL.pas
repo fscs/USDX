@@ -33,7 +33,7 @@ type
       function EnumDevices(): boolean;
     public
       function GetName: string; override;
-      function InitializeRecord: boolean; override;
+      function InitializeRecord(ScanMode: TAudioInputScanMode): boolean; override;
       function FinalizeRecord: boolean; override;
   end;
 
@@ -91,6 +91,8 @@ begin
                       'ms) buffer', 'SDL');
       SDL_PauseAudioDevice(DevID, 0);
     end;
+    if DevID <= 0 then
+      Log.LogError('Could not open input device "' + Name + '": ' + SDL_GetError, 'SDL');
   end;
 
   Result := (DevID > 0);
@@ -128,6 +130,7 @@ var
   device:       TSDLInputDevice;
   spec:         TSDL_AudioSpec;
   dev:          TSDL_AudioDeviceID;
+  deviceName:   UTF8String;
 begin
   Result := false;
 
@@ -147,6 +150,13 @@ begin
     if (name = nil) and (i > 0) then
       break;
 
+    deviceName := DEFAULT_SOURCE_NAME;
+    if (name <> nil) then
+      deviceName := name;
+    deviceName := UnifyDeviceName(deviceName, i);
+    if not ShouldProbeDevice(deviceName) then
+      continue;
+
     FillChar(spec, SizeOf(spec), 0);
     with spec do
     begin
@@ -163,13 +173,10 @@ begin
     SDL_CloseAudioDevice(dev);
 
     device := TSDLInputDevice.Create();
-    device.Name := DEFAULT_SOURCE_NAME;
+    device.Name := deviceName;
     device.UseName := false;
     if name <> nil then
-    begin
-      device.Name := name;
       device.UseName := true;
-    end;
 
     device.MicSource := -1;
     device.SourceRestore := -1;
@@ -197,10 +204,10 @@ begin
   // adjust size to actual input-device count
   SetLength(AudioInputProcessor.DeviceList, deviceIndex);
   Log.LogStatus('#Input-Devices: ' + IntToStr(deviceIndex), 'SDL');
-  Result := (deviceIndex > 0);
+  Result := (deviceIndex > 0) or (ScanMode = aimFast);
 end;
 
-function TAudioInput_SDL.InitializeRecord(): boolean;
+function TAudioInput_SDL.InitializeRecord(ScanMode: TAudioInputScanMode): boolean;
 begin
   Result := false;
 
@@ -208,6 +215,7 @@ begin
     Exit;
 
   Initialized := true;
+  PrepareDeviceScan(ScanMode);
   Result := EnumDevices();
 end;
 

@@ -37,7 +37,6 @@ uses
   SysUtils,
   Classes,
   sdl2,
-  dglOpenGL,
   UDisplay,
   UIni,
   ULog,
@@ -63,21 +62,27 @@ type
 
   PPLayer = ^TPlayer;
   TPlayer = record
+  private
+    _Score:       real;
+    _ScoreLine:   real;
+    _ScoreGolden: real;
+    _ScoreInt:       integer;
+    _ScoreLineInt:   integer;
+    _ScoreGoldenInt: integer;
+    _ScoreTotalInt:  integer;
+    procedure SetScore(newScore: real);
+    procedure SetScoreLine(newScoreLine: real);
+    procedure SetScoreGolden(newScoreGolden: real);
+    procedure UpdateIntScores;
+
+  public
     Name:           UTF8String;
+    Level:          integer; // 0 - easy, 1 - medium, 2 - hard
+    Track:          integer; // 0 - track 1, 1 - track 2 (duet)
 
     // Index in Teaminfo record
     TeamID:         byte;
     PlayerID:       byte;
-
-    // Scores
-    Score:          real;
-    ScoreLine:      real;
-    ScoreGolden:    real;
-
-    ScoreInt:       integer;
-    ScoreLineInt:   integer;
-    ScoreGoldenInt: integer;
-    ScoreTotalInt:  integer;
 
     // LineBonus
     ScoreLast:      real;    // Last Line Score
@@ -88,6 +93,17 @@ type
     HighNote:       integer; // index of last note (= High(Note)?)
     LengthNote:     integer; // number of notes (= Length(Note)?).
     Note:           array of TPlayerNote;
+
+    // Scores
+    property Score:       real read _Score write SetScore;
+    property ScoreLine:   real read _ScoreLine write SetScoreLine;
+    property ScoreGolden: real read _ScoreGolden write SetScoreGolden;
+
+    property ScoreInt:       integer read _ScoreInt;
+    property ScoreLineInt:   integer read _ScoreLineInt;
+    property ScoreGoldenInt: integer read _ScoreGoldenInt;
+    property ScoreTotalInt:  integer read _ScoreTotalInt;
+    procedure ResetScores;
   end;
 
   TStats = record
@@ -149,7 +165,6 @@ uses
   UCommandLine,
   UCommon,
   UConfig,
-  UCovers,
   UDataBase,
   UGraphic,
   UGraphicClasses,
@@ -163,6 +178,62 @@ uses
   USongs,
   UThemes;
 
+procedure TPlayer.SetScore(newScore: real);
+begin
+  _Score := newScore;
+  UpdateIntScores;
+end;
+procedure TPlayer.SetScoreLine(newScoreLine: real);
+begin
+  _ScoreLine := newScoreLine;
+  UpdateIntScores;
+end;
+procedure TPlayer.SetScoreGolden(newScoreGolden: real);
+begin
+  _ScoreGolden := newScoreGolden;
+  UpdateIntScores;
+end;
+procedure TPlayer.UpdateIntScores();
+begin
+  // total score
+  _ScoreTotalInt := round(Score + ScoreGolden + ScoreLine);
+  // components
+  _ScoreInt := round(Score);
+  _ScoreGoldenInt := round(ScoreGolden);
+  _ScoreLineInt := round(ScoreLine);
+  // _ScoreTotalInt = as close to the truth as possible, but the components might not add up to it
+  // this can happen if:
+  // * all the components are .2 (total is one higher than sum of components)
+  // * all the components are .6 (total is one less than the sum of components)
+  // in these cases we just +1/-1 a component so that it fits
+  if (_ScoreInt + _ScoreGoldenInt + _ScoreLineInt > _ScoreTotalInt) then begin
+    // prefer decreasing golden notes first, then regular notes, as a last resort just -1 the line bonus
+    if (_ScoreGoldenInt > 0) then
+      _ScoreGoldenInt := _ScoreGoldenInt - 1
+    else if (_ScoreInt > 0) then
+      _ScoreInt := _ScoreInt - 1
+    else
+      _ScoreLineInt := _ScoreLineInt - 1;
+  end else if (_ScoreInt + _ScoreGoldenInt + _ScoreLineInt < _ScoreTotalInt) then begin
+    // if the very first note(s) is golden AND this is the very beginning of the song, this might (temporarily) increase the wrong one.
+    // it is estimated that there are way more songs that simply don't have golden notes at all and where it thus would pick the correct one.
+    if (_ScoreInt > 0) or (_ScoreGoldenInt = 0) then
+      _ScoreInt := _ScoreInt + 1
+    else
+      _ScoreGoldenInt := _ScoreGoldenInt + 1;
+  end;
+end;
+procedure TPlayer.ResetScores();
+begin
+  _Score := 0;
+  _ScoreLine := 0;
+  _ScoreGolden := 0;
+  _ScoreInt := 0;
+  _ScoreLineInt := 0;
+  _ScoreGoldenInt := 0;
+  _ScoreTotalInt := 0;
+end;
+
 function GetTimeForBeats(BPM, Beats: real): real;
 begin
   Result := 60 / BPM * Beats;
@@ -173,130 +244,32 @@ begin
   Result := BPM * msTime / 60;
 end;
 
-procedure GetMidBeatSub(BPMNum: integer; var Time: real; var CurBeat: real);
-var
-  NewTime: real;
-begin
-  if High(CurrentSong.BPM) = BPMNum then
-  begin
-    // last BPM
-    CurBeat := CurrentSong.BPM[BPMNum].StartBeat + GetBeats(CurrentSong.BPM[BPMNum].BPM, Time);
-    Time := 0;
-  end
-  else
-  begin
-    // not last BPM
-    // count how much time is it for start of the new BPM and store it in NewTime
-    NewTime := GetTimeForBeats(CurrentSong.BPM[BPMNum].BPM, CurrentSong.BPM[BPMNum+1].StartBeat - CurrentSong.BPM[BPMNum].StartBeat);
-
-    // compare it to remaining time
-    if (Time - NewTime) > 0 then
-    begin
-      // there is still remaining time
-      CurBeat := CurrentSong.BPM[BPMNum].StartBeat;
-      Time := Time - NewTime;
-    end
-    else
-    begin
-      // there is no remaining time
-      CurBeat := CurrentSong.BPM[BPMNum].StartBeat + GetBeats(CurrentSong.BPM[BPMNum].BPM, Time);
-      Time := 0;
-    end; // if
-  end; // if
-end;
-
 function GetMidBeat(Time: real): real;
-var
-  CurBeat: real;
-  CurBPM:  integer;
 begin
   try
-  // static BPM
-  if Length(CurrentSong.BPM) = 1 then
-  begin
-    Result := Time * CurrentSong.BPM[0].BPM / 60;
-  end
-  // variable BPM
-  else if Length(CurrentSong.BPM) > 1 then
-  begin
-    CurBeat := 0;
-    CurBPM := 0;
-    while (Time > 0) do
-    begin
-      GetMidBeatSub(CurBPM, Time, CurBeat);
-      Inc(CurBPM);
-    end;
-
-    Result := CurBeat;
-  end
-  // invalid BPM
-  else
-  begin
-    Result := 0;
-  end;
+    if CurrentSong.BPM >= MIN_BPM then
+      Result := Time * CurrentSong.BPM / 60
+    else
+      Result := 0;
   except
     on E : Exception do
-    Result :=0;
+      Result := 0;
   end;
 end;
 
 function GetTimeFromBeat(Beat: integer; SelfSong: TSong = nil): real;
 var
-  CurBPM: integer;
   Song: TSong;
 begin
-
   if (SelfSong <> nil) then
     Song := SelfSong
   else
     Song := CurrentSong;
 
-  Result := 0;
-
-  // static BPM
-  if Length(Song.BPM) = 1 then
-  begin
-    Result := Song.GAP / 1000 + Beat * 60 / Song.BPM[0].BPM;
-  end
-  // variable BPM
-  else if Length(Song.BPM) > 1 then
-  begin
-    Result := Song.GAP / 1000;
-    CurBPM := 0;
-    while (CurBPM <= High(Song.BPM)) and
-          (Beat > Song.BPM[CurBPM].StartBeat) do
-    begin
-      if (CurBPM < High(Song.BPM)) and
-         (Beat >= Song.BPM[CurBPM+1].StartBeat) then
-      begin
-        // full range
-        Result := Result + (60 / Song.BPM[CurBPM].BPM) *
-                           (Song.BPM[CurBPM+1].StartBeat - Song.BPM[CurBPM].StartBeat);
-      end;
-
-      if (CurBPM = High(Song.BPM)) or
-         (Beat < Song.BPM[CurBPM+1].StartBeat) then
-      begin
-        // in the middle
-        Result := Result + (60 / Song.BPM[CurBPM].BPM) *
-                           (Beat - Song.BPM[CurBPM].StartBeat);
-      end;
-      Inc(CurBPM);
-    end;
-
-    {
-    while (Time > 0) do
-    begin
-      GetMidBeatSub(CurBPM, Time, CurBeat);
-      Inc(CurBPM);
-    end;
-    }
-  end
-  // invalid BPM
+  if Song.BPM >= MIN_BPM then
+    Result := Song.GAP / 1000 + Beat * 60 / Song.BPM
   else
-  begin
     Result := 0;
-  end;
 end;
 
 procedure Sing(Screen: TScreenSingController);
@@ -318,20 +291,19 @@ begin
     TrackIndex := CountGr;
 
     // old parts
-    LyricsState.OldLine := Tracks[TrackIndex].CurrentLine;
+    LyricsState.OldLine := CurrentSong.Tracks[TrackIndex].CurrentLine;
 
     // choose current parts
-    for LineIndex := 0 to Tracks[TrackIndex].High do
+    for LineIndex := 0 to CurrentSong.Tracks[TrackIndex].High do
     begin
-      if LyricsState.CurrentBeat >= Tracks[TrackIndex].Lines[LineIndex].StartBeat then
-        Tracks[TrackIndex].CurrentLine := LineIndex;
+      if LyricsState.CurrentBeat >= CurrentSong.Tracks[TrackIndex].Lines[LineIndex].StartBeat then
+        CurrentSong.Tracks[TrackIndex].CurrentLine := LineIndex;
     end;
 
     // clean player note if there is a new line
     // (optimization on halfbeat time)
-    if Tracks[TrackIndex].CurrentLine <> LyricsState.OldLine then
+    if CurrentSong.Tracks[TrackIndex].CurrentLine <> LyricsState.OldLine then
       NewSentence(TrackIndex, Screen);
-
   end; // for CountGr
 
   // make some operations on clicks
@@ -356,18 +328,18 @@ begin
   begin;
     CP := CountGr;
     // old parts
-    LyricsState.OldLine := Tracks[CP].CurrentLine;
+    LyricsState.OldLine := CurrentSong.Tracks[CP].CurrentLine;
 
     // choose current parts
-    for Count := 0 to Tracks[CP].High do
+    for Count := 0 to CurrentSong.Tracks[CP].High do
     begin
-      if LyricsState.CurrentBeat >= Tracks[CP].Lines[Count].StartBeat then
-        Tracks[CP].CurrentLine := Count;
+      if LyricsState.CurrentBeat >= CurrentSong.Tracks[CP].Lines[Count].StartBeat then
+        CurrentSong.Tracks[CP].CurrentLine := Count;
     end;
   end; // for CountGr
 
   // on sentence change...
-  Screen.onSentenceChange(Tracks[0].CurrentLine);
+  Screen.onSentenceChange(CurrentSong.Tracks[0].CurrentLine);
 end;
 
 procedure NewSentence(CP: integer; Screen: TScreenSingController);
@@ -385,7 +357,7 @@ begin
     end;
   end;
 
-  Screen.onSentenceChange(CP, Tracks[CP].CurrentLine)
+  Screen.onSentenceChange(CP, CurrentSong.Tracks[CP].CurrentLine)
 end;
 
 procedure NewBeatClick;
@@ -396,16 +368,16 @@ begin
 
   if not (CurrentSong.isDuet) or (PlayersPlay = 1) then
   begin
-    if ((Ini.BeatClick = 1) and
-        ((LyricsState.CurrentBeatC + Tracks[0].Resolution + Tracks[0].NotesGAP) mod Tracks[0].Resolution = 0)) then
+  if ((Ini.BeatClick = 1) and
+    ((LyricsState.CurrentBeatC + USong.DEFAULT_RESOLUTION + CurrentSong.Tracks[0].NotesGAP) mod USong.DEFAULT_RESOLUTION = 0)) then
     begin
       AudioPlayback.PlaySound(SoundLib.Click);
     end;
 
-    for Count := 0 to Tracks[0].Lines[Tracks[0].CurrentLine].HighNote do
+    for Count := 0 to CurrentSong.Tracks[0].Lines[CurrentSong.Tracks[0].CurrentLine].HighNote do
     begin
       //basisbit todo
-      if (Tracks[0].Lines[Tracks[0].CurrentLine].Notes[Count].StartBeat = LyricsState.CurrentBeatC) then
+      if (CurrentSong.Tracks[0].Lines[CurrentSong.Tracks[0].CurrentLine].Notes[Count].StartBeat = LyricsState.CurrentBeatC) then
       begin
         // click assist
         if Ini.ClickAssist = 1 then
@@ -426,20 +398,14 @@ end;
 
 procedure NewBeatDetect(Screen: TScreenSingController);
   var
-    MaxCP, CP, SentenceEnd: integer;
+    MaxCP, CP, SentenceEnd, StartLine, EndLine: integer;
     I, J: cardinal;
 begin
   // check for sentence end
-  // we check all lines here because a new sentence may
-  // have been started even before the old one finishes
-  // due to corrupt lien breaks
-  // checking only current line works to, but may lead to
-  // weird ratings for the song files w/ the mentioned
-  // errors
-  // To-Do Philipp : check current and last line should
-  // do it for most corrupt txt and for lines in
-  // non-corrupt txts that start immediatly after the prev.
-  // line ends
+  // we check three lines (previous, current, next)
+  // here because a new sentence may have started
+  // before the old one finished due to corrupt line breaks
+
   MaxCP := 0;
   if (CurrentSong.isDuet) and (PlayersPlay <> 1) then
     MaxCP := 1;
@@ -450,11 +416,18 @@ begin
     begin
       CP := J;
 
+      StartLine := CurrentSong.Tracks[CP].CurrentLine - 1;
+      if StartLine < 0 then
+        StartLine := 0;
+      EndLine := StartLine + 1;
+      if EndLine > CurrentSong.Tracks[CP].High then
+        EndLine := CurrentSong.Tracks[CP].High;
+
       NewNote(CP, Screen);
 
-      for I := 0 to Tracks[CP].High do
+      for I := StartLine to EndLine do
       begin
-        with Tracks[CP].Lines[I] do
+        with CurrentSong.Tracks[CP].Lines[I] do
         begin
           if (HighNote >= 0) then
           begin
@@ -496,14 +469,14 @@ begin
   NoteHit := false;
 
   // TODO: add duet mode support
-  // use Tracks[LineSetIndex] with LineSetIndex depending on the current player
+  // use CurrentSong.Tracks[LineSetIndex] with LineSetIndex depending on the current player
 
   // count min and max sentence range for checking
   // (detection is delayed to the notes we see on the screen)
-  SentenceMin := Tracks[CP].CurrentLine-1;
+  SentenceMin := CurrentSong.Tracks[CP].CurrentLine-1;
   if (SentenceMin < 0) then
     SentenceMin := 0;
-  SentenceMax := Tracks[CP].CurrentLine;
+  SentenceMax := CurrentSong.Tracks[CP].CurrentLine;
 
   for ActualBeat := LyricsState.OldBeatD+1 to LyricsState.CurrentBeatD do
   begin
@@ -517,7 +490,7 @@ begin
         SentenceDetected := SentenceMin;
         for SentenceIndex := SentenceMin to SentenceMax do
         begin
-          Line := @Tracks[CP].Lines[SentenceIndex];
+          Line := @CurrentSong.Tracks[CP].Lines[SentenceIndex];
           for LineFragmentIndex := 0 to Line.HighNote do
           begin
             CurrentLineFragment := @Line.Notes[LineFragmentIndex];
@@ -559,7 +532,7 @@ begin
         if (CurrentSound.ToneValid and NoteAvailable) then
         begin
           CurrentNoteType := ntNormal;
-          Line := @Tracks[CP].Lines[SentenceDetected];
+          Line := @CurrentSong.Tracks[CP].Lines[SentenceDetected];
           // process until last note
           for LineFragmentIndex := 0 to Line.HighNote do
           begin
@@ -582,7 +555,7 @@ begin
               NoteHit := false;
               ActualTone := CurrentSound.Tone;
               if (ScreenSong.Mode = smNormal) or (ScreenSong.Mode = smMedley) then
-                Range := 2 - Ini.PlayerLevel[PlayerIndex]
+                Range := 2 - Player[PlayerIndex].Level
               else
                 Range := 2 - Ini.Difficulty;
 
@@ -599,17 +572,14 @@ begin
                 // half size notes patch
                 NoteHit := true;
 
-                if (Ini.LineBonus > 0) then
-                  MaxSongPoints := MAX_SONG_SCORE - MAX_SONG_LINE_BONUS
-                else
-                  MaxSongPoints := MAX_SONG_SCORE;
+                MaxSongPoints := MAX_SONG_SCORE - MAX_SONG_LINE_BONUS;
 
                 // Note: ScoreValue is the sum of all note values of the song
                 // (MaxSongPoints / ScoreValue) is the points that a player
                 // gets for a hit of one beat of a normal note
                 // CurNotePoints is the amount of points that is meassured
                 // for a hit of the note per full beat
-                CurNotePoints := (MaxSongPoints / Tracks[CP].ScoreValue) * ScoreFactor[CurrentLineFragment.NoteType];
+                CurNotePoints := (MaxSongPoints / CurrentSong.Tracks[CP].ScoreValue) * ScoreFactor[CurrentLineFragment.NoteType];
 
                 case CurrentLineFragment.NoteType of
                   ntNormal:    CurrentPlayer.Score       := CurrentPlayer.Score       + CurNotePoints;
@@ -617,29 +587,6 @@ begin
                   ntRap:       CurrentPlayer.Score       := CurrentPlayer.Score       + CurNotePoints;
                   ntRapGolden: CurrentPlayer.ScoreGolden := CurrentPlayer.ScoreGolden + CurNotePoints;
                 end;
-
-                // a problem if we use floor instead of round is that a score of
-                // 10000 points is only possible if the last digit of the total points
-                // for golden and normal notes is 0.
-                // if we use round, the max score is 10000 for most songs
-                // but a score of 10010 is possible if the last digit of the total
-                // points for golden and normal notes is 5
-                // the best solution is to use round for one of these scores
-                // and round the other score in the opposite direction
-                // so we assure that the highest possible score is 10000 in every case.
-                CurrentPlayer.ScoreInt := round(CurrentPlayer.Score / 10) * 10;
-
-                if (CurrentPlayer.ScoreInt < CurrentPlayer.Score) then
-                  //normal score is floored so we have to ceil golden notes score
-                  CurrentPlayer.ScoreGoldenInt := ceil(CurrentPlayer.ScoreGolden / 10) * 10
-                else
-                  //normal score is ceiled so we have to floor golden notes score
-                  CurrentPlayer.ScoreGoldenInt := floor(CurrentPlayer.ScoreGolden / 10) * 10;
-
-
-                CurrentPlayer.ScoreTotalInt := CurrentPlayer.ScoreInt +
-                                               CurrentPlayer.ScoreGoldenInt +
-                                               CurrentPlayer.ScoreLineInt;
               end;
             end; // operation
           end; // for

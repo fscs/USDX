@@ -34,19 +34,16 @@ interface
 {$I switches.inc}
 
 uses
-  dglOpenGL,
   UCommon,
   UIni,
-  UTexture,
+  URenderer,
   UThemes,
-  UMusic;
+  UMusic,
+  UMenu;
 
 type
-  // stores two textures for enabled/disabled states
-  TPlayerIconTex = array [0..1] of TTexture;
-
   TLyricsEffect = (lfxSimple, lfxZoom, lfxSlide, lfxBall, lfxShift);
-  
+
   PLyricWord = ^TLyricWord;
   TLyricWord = record
     X:          real;     // left corner
@@ -83,21 +80,16 @@ type
       LowerLine:      TLyricLine;    // second lind displayed (bottom)
       QueueLine:      TLyricLine;    // third line (will be displayed when lower line is finished)
 
-      IndicatorTex:   TTexture;      // texture for lyric indikator
       BallTex:        TTexture;      // texture of the ball for the lyric effect
 
       QueueFull:      boolean;       // set to true if the queue is full and a line will be replaced with the next AddLine
       LCounter:       integer;       // line counter
 
-      // duet mode - textures for player icons
-      PlayerIconTex:  array[0..UIni.IMaxPlayerCount -1] of TPlayerIconTex;
-
       // Some helper procedures for lyric drawing
       procedure DrawLyrics (Beat: real);
-      procedure UpdateLineMetrics(LyricLine: TLyricLine);
+      procedure UpdateLineMetrics(LyricLine: TLyricLine) overload;
       procedure DrawLyricsWords(LyricLine: TLyricLine; X, Y: real; StartWord, EndWord: integer);
       procedure DrawLyricsLine(X, W, Y, H: real; Line: TLyricLine; Beat: real);
-      procedure DrawPlayerIcon(Player: byte; Enabled: boolean; X, Y: real; Size, Alpha: real);
       procedure DrawBall(XBall, YBall, Alpha: real);
 
     public
@@ -133,7 +125,6 @@ type
 
       // song specific settings
       BPM:            real;
-      Resolution:     integer;
 
       // properties to easily read options of this class
       property IsQueueFull: boolean read QueueFull;  // line in queue?
@@ -143,10 +134,11 @@ type
       procedure Draw (Beat: real);                 // draw the current (active at beat) lyrics
 
       // clears all cached song specific information
-      procedure Clear(cBPM: real = 0; cResolution: integer = 0);
+      procedure Clear(cBPM: real = 0);
 
       function GetUpperLine(): TLyricLine;
       function GetLowerLine(): TLyricLine;
+      procedure UpdateLineMetrics() overload;
 
       function GetUpperLineIndex(): integer;
 
@@ -160,10 +152,11 @@ implementation
 uses
   SysUtils,
   USkins,
-  TextGL,
+  UText,
   UGraphic,
   UDisplay,
   ULog,
+  UPath,
   math;
 
 { TLyricLine }
@@ -208,7 +201,6 @@ begin
   inherited Create();
 
   BPM := 0;
-  Resolution := 0;
   LCounter := 0;
   QueueFull := False;
 
@@ -240,17 +232,17 @@ begin
   UpperLine.Free;
   LowerLine.Free;
   QueueLine.Free;
+  BallTex.Free;
   inherited;
 end;
 
 {**
  * Clears all cached Song specific Information.
  *}
-procedure TLyricEngine.Clear(cBPM: real; cResolution: integer);
+procedure TLyricEngine.Clear(cBPM: real);
 begin
   UpperLine.CurWord := -1;
   BPM := cBPM;
-  Resolution := cResolution;
   LCounter := 0;
   QueueFull := False;
 
@@ -263,21 +255,12 @@ end;
  * player icons, a ball for the ball effect and the lyric indicator.
  *}
 procedure TLyricEngine.LoadTextures;
-var
-  I: Integer;
 begin
-  // lyric indicator (bar that indicates when the line start)
-  IndicatorTex := Texture.LoadTexture(Skin.GetTextureFileName('LyricHelpBar'), TEXTURE_TYPE_TRANSPARENT, $FF00FF);
 
   // ball for current word hover in ball effect
-  BallTex := Texture.LoadTexture(Skin.GetTextureFileName('Ball'), TEXTURE_TYPE_TRANSPARENT, 0);
-
-  // duet mode: load player icon
-  for I := 0 to UIni.IMaxPlayerCount - 1 do
-  begin
-    PlayerIconTex[I][0] := Texture.LoadTexture(Skin.GetTextureFileName('LyricIcon_P' + InttoStr(I+1)), TEXTURE_TYPE_TRANSPARENT, 0);
-    PlayerIconTex[I][1] := Texture.LoadTexture(Skin.GetTextureFileName('LyricIconD_P' + InttoStr(I+1)), TEXTURE_TYPE_TRANSPARENT, 0);
-  end;
+  BallTex := Renderer.LoadTexture(Skin.GetTextureFileName('Ball'), TEXTURE_TYPE_TRANSPARENT, 0);
+  BallTex.W := 20;
+  BallTex.H := 20;
 end;
 
 {**
@@ -319,7 +302,7 @@ begin
 
   // reset line state
   LyricLine.Reset();
-                          
+
   // check if sentence has notes
   if (Line <> nil) and (Length(Line.Notes) > 0) then
   begin
@@ -371,55 +354,16 @@ begin
   DrawLyricsLine(LowerLineX, LowerLineW, LowerLineY, LowerLineH, LowerLine, Beat);
 end;
 
-{**
- * Draws a Player's icon.
- *}
-procedure TLyricEngine.DrawPlayerIcon(Player: byte; Enabled: boolean; X, Y: real; Size, Alpha: real);
-var
-  IEnabled: byte;
-begin
-  if Enabled then
-    IEnabled := 0
-  else
-    IEnabled := 1;
-
-  glEnable(GL_TEXTURE_2D);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glBindTexture(GL_TEXTURE_2D, PlayerIconTex[Player][IEnabled].TexNum);
-
-  glColor4f(1, 1, 1, Alpha);
-  glBegin(GL_QUADS);
-    glTexCoord2f(0, 0); glVertex2f(X, Y);
-    glTexCoord2f(0, 1); glVertex2f(X, Y + Size);
-    glTexCoord2f(1, 1); glVertex2f(X + Size, Y + Size);
-    glTexCoord2f(1, 0); glVertex2f(X + Size, Y);
-  glEnd;
-
-  glDisable(GL_BLEND);
-  glDisable(GL_TEXTURE_2D);
-end;
 
 {**
  * Draws the Ball over the LyricLine if needed.
  *}
 procedure TLyricEngine.DrawBall(XBall, YBall, Alpha: real);
 begin
-  glEnable(GL_TEXTURE_2D);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glBindTexture(GL_TEXTURE_2D, BallTex.TexNum);
-
-  glColor4f(1, 1, 1, Alpha);
-  glBegin(GL_QUADS);
-    glTexCoord2f(0, 0); glVertex2f(XBall - 10, YBall);
-    glTexCoord2f(0, 1); glVertex2f(XBall - 10, YBall + 20);
-    glTexCoord2f(1, 1); glVertex2f(XBall + 10, YBall + 20);
-    glTexCoord2f(1, 0); glVertex2f(XBall + 10, YBall);
-  glEnd;
-
-  glDisable(GL_BLEND);
-  glDisable(GL_TEXTURE_2D);
+  BallTex.X := XBall - 10;
+  BallTex.Y := YBall;
+  BallTex.Alpha := Alpha;
+  Renderer.DrawTexture(BallTex);
 end;
 
 procedure TLyricEngine.DrawLyricsWords(LyricLine: TLyricLine;
@@ -437,7 +381,7 @@ begin
     CurWord := @LyricLine.Words[I];
     SetFontItalic(CurWord.Freestyle);
     SetFontPos(PosX + CurWord.X, Y);
-    glPrint(CurWord.Text);
+    PrintText(CurWord.Text);
   end;
 end;
 
@@ -475,7 +419,7 @@ begin
   // set font size to a reasonable value
   LyricLine.Height := RequestHeight * 0.9;
   SetFontSize(LyricLine.Height);
-  LyricLine.Width := glTextWidth(LyricLine.Text);
+  LyricLine.Width := TextWidth(LyricLine.Text);
 
   // change font-size to fit into the lyric bar
   if (LyricLine.Width > RequestWidth) then
@@ -486,7 +430,7 @@ begin
       LyricLine.Height := 1;
 
     SetFontSize(LyricLine.Height);
-    LyricLine.Width := glTextWidth(LyricLine.Text);
+    LyricLine.Width := TextWidth(LyricLine.Text);
   end;
 
   // calc word positions and widths
@@ -499,9 +443,9 @@ begin
     if CurWord.Freestyle then
       SetFontItalic(true);
 
-    CurWord.Width := glTextWidth(CurWord.Text);
+    CurWord.Width := TextWidth(CurWord.Text);
     TextSoFar := TextSoFar + CurWord.Text;
-    CurWord.X := PosX + glTextWidth(TextSoFar) - CurWord.Width;
+    CurWord.X := PosX + TextWidth(TextSoFar) - CurWord.Width;
     SetFontItalic(false);
 
     if (I+1 < Length(LyricLine.Words)) and
@@ -511,6 +455,12 @@ begin
       TextSoFar := '';
     end;
   end;
+end;
+
+procedure TLyricEngine.UpdateLineMetrics();
+begin
+  UpdateLineMetrics(UpperLine);
+  UpdateLineMetrics(LowerLine);
 end;
 
 
@@ -527,7 +477,7 @@ var
   WordY: real;                    // word y-position
   LyricsEffect: TLyricsEffect;
   Alpha: real;    // alphalevel to fade out at end
-  ClipPlaneEq: array[0..3] of GLdouble; // clipping plane for slide effect
+  FontSize, FontScale: real;
 
   OutlineColor_act: TRGB;                  // outline color actual line
   OutlineColor_dis: TRGB;                  // outline color next line
@@ -540,16 +490,6 @@ begin
   // do not draw empty lines
   if (Length(Line.Words) = 0) then
     Exit;
-
-  {
-  // duet mode
-  IconSize := (2 * Height);
-  IconAlpha := Frac(Beat/(Resolution*4));
-
-  DrawPlayerIcon (0, True, X, Y + (42 - IconSize) / 2 , IconSize, IconAlpha);
-  DrawPlayerIcon (1, True, X + IconSize + 1,  Y + (42 - IconSize) / 2, IconSize, IconAlpha);
-  DrawPlayerIcon (2, True, X + (IconSize + 1)*2, Y + (42 - IconSize) / 2, IconSize, IconAlpha);
-  }
 
   // set font size and style
   SetFontFamily(FontFamily);
@@ -685,14 +625,14 @@ begin
     // draw sentence before current word
     if (LyricsEffect in [lfxSimple, lfxBall, lfxShift]) then
       // only highlight current word and not that ones before in this line
-      glColor4f(LineColor_en.R, LineColor_en.G ,LineColor_en.B, Alpha)
+      SetFontColor(LineColor_en.R, LineColor_en.G ,LineColor_en.B, Alpha)
     else
-      glColor4f(LineColor_act.R, LineColor_act.G ,LineColor_act.B, Alpha);
+      SetFontColor(LineColor_act.R, LineColor_act.G ,LineColor_act.B, Alpha);
 
     DrawLyricsWords(Line, LyricX, LyricY, 0, Line.CurWord-1);
 
     // draw rest of sentence (without current word)
-    glColor4f(LineColor_en.R, LineColor_en.G ,LineColor_en.B, Alpha);
+    SetFontColor(LineColor_en.R, LineColor_en.G ,LineColor_en.B, Alpha);
 
     if (NextWord <> nil) then
     begin
@@ -718,57 +658,49 @@ begin
         WordY := LyricY;
 
       // change the color of the current word
-      glColor4f(LineColor_act.R, LineColor_act.G ,LineColor_act.B, Alpha);
+      SetFontColor(LineColor_act.R, LineColor_act.G ,LineColor_act.B, Alpha);
 
       DrawLyricsWords(Line, LyricX + CurWord.X, WordY, Line.CurWord, Line.CurWord);
     end
     // change color and zoom current word
     else if (LyricsEffect = lfxZoom) then
     begin
-      glPushMatrix;
 
       // zoom at word center
-      glTranslatef(LyricX + CurWord.X + CurWord.Width/2,
-                   LyricY + Line.Height/2, 0);
-      glScalef(1.0 + (1-Progress) * 0.5, 1.0 + (1-Progress) * 0.5, 1);
+      FontSize := GetFontSize();
+      FontScale := 1.0 + ((1 - Progress) * 0.5);
+      SetFontSize(FontSize * FontScale);
+      SetFontColor(LineColor_act.R, LineColor_act.G ,LineColor_act.B, Alpha);
+      DrawLyricsWords(Line,
+        LyricX + CurWord.X + ((1 - FontScale) * (CurWord.Width / 2)),
+        LyricY + ((1 - FontScale) * (Line.Height / 2)),
+        Line.CurWord,
+        Line.CurWord
+      );
+      SetFontSize(FontSize);
 
-      glColor4f(LineColor_act.R, LineColor_act.G ,LineColor_act.B, Alpha);
-
-      DrawLyricsWords(Line, -CurWord.Width/2, -Line.Height/2, Line.CurWord, Line.CurWord);
-
-      glPopMatrix;
     end
     // split current word into active and non-active part
     else if (LyricsEffect = lfxSlide) then
     begin
-      // enable clipping and set clip equation coefficients to zeros
-      glEnable(GL_CLIP_PLANE0);
-      FillChar(ClipPlaneEq[0], SizeOf(ClipPlaneEq), 0);
-
-      glPushMatrix;
-      glTranslatef(LyricX + CurWord.X, LyricY, 0);
+      // enable clipping
+      Renderer.ClipText := true;
 
       // clip non-active right part of the current word
-      ClipPlaneEq[0] := -1;
-      ClipPlaneEq[3] := CurWord.Width * Progress;
-      glClipPlane(GL_CLIP_PLANE0, @ClipPlaneEq);
-      // and draw active left part
-      glColor4f(LineColor_act.R, LineColor_act.G ,LineColor_act.B, Alpha);
+      Renderer.SetTextClipBoundary((LyricX + CurWord.X + (CurWord.Width * Progress)), cdRight);
 
-      DrawLyricsWords(Line, 0, 0, Line.CurWord, Line.CurWord);
+      // and draw active left part
+      SetFontColor(LineColor_act.R, LineColor_act.G ,LineColor_act.B, Alpha);
+      DrawLyricsWords(Line, LyricX + CurWord.X, LyricY, Line.CurWord, Line.CurWord);
 
       // clip active left part of the current word
-      ClipPlaneEq[0] := -ClipPlaneEq[0];
-      ClipPlaneEq[3] := -ClipPlaneEq[3];
-      glClipPlane(GL_CLIP_PLANE0, @ClipPlaneEq);
+      Renderer.SetTextClipBoundary((LyricX + CurWord.X + (CurWord.Width * Progress)), cdLeft);
+
       // and draw non-active right part
-      glColor4f(LineColor_en.R, LineColor_en.G ,LineColor_en.B, Alpha);
+      SetFontColor(LineColor_en.R, LineColor_en.G ,LineColor_en.B, Alpha);
+      DrawLyricsWords(Line, LyricX + CurWord.X, LyricY, Line.CurWord, Line.CurWord);
 
-      DrawLyricsWords(Line, 0, 0, Line.CurWord, Line.CurWord);
-
-      glPopMatrix;
-
-      glDisable(GL_CLIP_PLANE0);
+      Renderer.ClipText := false;
     end;
 
     // draw the ball onto the current word
@@ -790,14 +722,14 @@ begin
       // outline color
       SetOutlineColor(OutlineColor_en.R, OutlineColor_en.G, OutlineColor_en.B, Alpha);
 
-      glColor4f(LineColor_en.R, LineColor_en.G ,LineColor_en.B, Alpha);
+      SetFontColor(LineColor_en.R, LineColor_en.G ,LineColor_en.B, Alpha);
     end
     else
     begin
       // outline color
       SetOutlineColor(OutlineColor_dis.R, OutlineColor_dis.G, OutlineColor_dis.B, Alpha);
 
-      glColor4f(LineColor_dis.R, LineColor_dis.G ,LineColor_dis.B, Alpha);
+      SetFontColor(LineColor_dis.R, LineColor_dis.G ,LineColor_dis.B, Alpha);
     end;
 
     DrawLyricsWords(Line, LyricX, LyricY, 0, High(Line.Words));
@@ -844,4 +776,3 @@ begin
 end;
 
 end.
-

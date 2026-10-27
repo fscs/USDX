@@ -229,10 +229,6 @@ procedure Register;
 {====================================================================}
 implementation
 
-uses
-  Controls,
-  Graphics;
-
 (* Not used in Delphi 3
 { This is the callback procedure in the external DLL.
   It's used when midiInOpen is called by the Open method.
@@ -532,8 +528,8 @@ begin
     Pctlinfo^.hWindow := Handle; { Control's window handle }
     PCtlInfo^.SysexOnly := FSysexOnly;
     FError := midiInOpen(@FMidiHandle, FDeviceId,
-      dword(@midiHandler),
-      dword(PCtlInfo),
+      PtrUInt(@midiHandler),
+      PtrUInt(PCtlInfo),
       CALLBACK_FUNCTION);
 
     if FError <> MMSYSERR_NOERROR then

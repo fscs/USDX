@@ -40,18 +40,20 @@ uses
   UDLLManager,
   ULog,
   UMenu,
+  UMenuSelectSlide,
   UMusic,
   md5,
+  URenderer,
   USkins,
   USongs,
   UScreenSong,
   UNote,
   UFiles,
-  UTexture,
   UThemes,
   UWebSDK,
   UHelp,
-  TextGL,
+  UText,
+  Math,
   Classes;
 
 type
@@ -185,6 +187,7 @@ type
       Position_Receive_List: array[0..2] of integer;
 
       constructor Create; override;
+      destructor Destroy; override;
       function ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean; override;
       procedure OnShow; override;
       procedure ShowPopup(optmode: integer; optsong: integer; optweb: integer);
@@ -234,6 +237,38 @@ type
     step:       double;
     barH:       double;
 
+    VolumeOptions: array of UTF8String;
+    VolumeAudioIndex: Integer;
+    VolumeVocalsIndex: Integer;
+    VolumeSfxIndex: Integer;
+    VolumePreviewIndex: Integer;
+    VolumeAudioSelectId: Integer;
+    VolumeVocalsSelectId: Integer;
+    VolumeSfxSelectId: Integer;
+    VolumePreviewSelectId: Integer;
+    CursorForcedVisible: boolean;
+    ResumeSingAfterPopup: boolean;
+    VolumeSettingsDirty: boolean;
+    DraggingVolumeSelectId: integer;
+
+    procedure   BuildVolumeOptions;
+    procedure   SyncVolumeSliders;
+    procedure   ApplyVolumeChanges(const PrevAudio, PrevVocals, PrevSfx, PrevPreview: integer);
+    procedure   DrawVolumeControls;
+    procedure   ConfigureVolumeSlider(SelectId: integer);
+    procedure   DrawVolumeBarFill(SelectId, Value: integer);
+    procedure   DrawVolumeLabel(SelectId: integer);
+    function    HasVolumeSlider(SelectId: integer): boolean;
+    function    VolumeSliderAtPosition(X, Y: integer): integer;
+    procedure   UpdateVolumeSliderFromPointer(SelectId, X: integer);
+    function    HandleVolumeSliderDrag(MouseButton: integer; BtnDown: boolean; X, Y: integer): boolean;
+    procedure   ConvertMouseToRenderCoords(X, Y: integer; out RenderX, RenderY: integer);
+    procedure   FocusVolumeSlider;
+    function    IsVolumeSelectInteraction(Index: integer): boolean;
+    function    StepVolumeSliderFromKeyboard(Delta: integer): boolean;
+    procedure   ForceCursorVisibleForSing;
+    procedure   RestoreCursorAfterPopup;
+
     procedure   DrawTable;
     procedure   DrawLine(line, index, Y: integer);
     procedure   DrawText(line, index, Y: integer);
@@ -243,9 +278,12 @@ type
 
     constructor Create; override;
     function ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean; override;
+    function ParseMouse(MouseButton: integer; BtnDown: boolean; X, Y: integer): boolean; override;
     procedure onShow; override;
     procedure onHide; override;
-    procedure ShowPopup();
+    procedure ShowPopup; overload;
+    procedure ShowPopup(const ResumeSingAfterClose: boolean); overload;
+    procedure ClosePopup;
     function Draw: boolean; override;
 end;
 
@@ -256,7 +294,6 @@ var
 implementation
 
 uses
-  dglOpenGL,
   UGraphic,
   UMain,
   UIni,
@@ -333,6 +370,7 @@ end;
 
 function TScreenPopupCheck.Draw: boolean;
 begin
+  Renderer.ClearFrameBuffer(CLEAR_DEPTH);
   Result := inherited Draw;
 end;
 
@@ -487,6 +525,7 @@ end;
 
 function TScreenPopupInsertUser.Draw: boolean;
 begin
+  Renderer.ClearFrameBuffer(CLEAR_DEPTH);
   Result := inherited Draw;
 end;
 
@@ -641,7 +680,7 @@ begin
             if (New_User = true) then
               SelectValueU := High(IUsername);
 
-            UpdateSelectSlideOptions(Theme.SendScorePopup.SelectSlide3, 2, IUsername, SelectValueU);
+            UpdateSelectSlideOptions(2, IUsername, SelectValueU);
           end;
 
           if (SelectValueU = High(IUsername)) then
@@ -697,7 +736,7 @@ begin
             if (New_User = true) then
               SelectValueU := High(IUsername);
 
-            UpdateSelectSlideOptions(Theme.SendScorePopup.SelectSlide3, 2, IUsername, SelectValueU);
+            UpdateSelectSlideOptions(2, IUsername, SelectValueU);
           end;
 
           if (SelectValueU = High(IUsername)) then
@@ -784,6 +823,7 @@ end;
 
 function TScreenPopupSendScore.Draw: boolean;
 begin
+  Renderer.ClearFrameBuffer(CLEAR_DEPTH);
   Result := inherited Draw;
 end;
 
@@ -825,11 +865,11 @@ begin
   SetLength(IPlayersPlay, PlayersPlay);
 
   for I := 0 to PlayersPlay - 1 do
-    IPlayersPlay[I] := Ini.Name[I];
+    IPlayersPlay[I] := Player[I].Name;
 
-  UpdateSelectSlideOptions(Theme.SendScorePopup.SelectSlide1, 0, IPlayersPlay, SelectValueP);
+  UpdateSelectSlideOptions(0, IPlayersPlay, SelectValueP);
 
-  //UpdateSelectSlideOptions(Theme.SendScorePopup.SelectSlide2, 1, IWebsite, SelectValueW);
+  UpdateSelectSlideOptions(1, IWebsite, SelectValueW);
 
   SetLength(IUsername, Length(DataBase.NetworkUser[SelectValueW].UserList));
 
@@ -839,7 +879,7 @@ begin
   SetLength(IUsername, Length(IUsername) + 1);
   IUsername[High(IUsername)] := Language.Translate('SCORE_SEND_OTHER_USER');
 
-  UpdateSelectSlideOptions(Theme.SendScorePopup.SelectSlide3, 2, IUsername, SelectValueU);
+  UpdateSelectSlideOptions(2, IUsername, SelectValueU);
 
   if (SelectValueU = High(IUsername)) then
   begin
@@ -880,8 +920,6 @@ end;
 { TScreenPopupScoreDownload }
 
 function TScreenPopupScoreDownload.ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean;
-var
-  Value: boolean;
 begin
   Result := true;
   if (PressedDown) then
@@ -891,7 +929,6 @@ begin
       SDLK_ESCAPE,
       SDLK_BACKSPACE :
         begin
-          Value := false;
           Visible := false;
           Result := false;
           Text[0].Text := Language.Translate('SCORE_DOWNLOAD_RECEIVE_LIST');
@@ -900,7 +937,6 @@ begin
 
       SDLK_RETURN:
         begin
-          Value := (Interaction = 0);
           if (Interaction = 0) then
           begin
             Visible := false;
@@ -924,7 +960,7 @@ constructor TScreenPopupScoreDownload.Create;
 begin
   inherited Create;
 
-  Texture_ProgressBar := Texture.LoadTexture(Skin.GetTextureFileName('ProgressBar'));
+  Texture_ProgressBar := Renderer.LoadTexture(Skin.GetTextureFileName('ProgressBar'));
 
   Theme.ScoreDownloadPopup.TextSongScoreDownload.Text := Language.Translate('SCORE_DOWNLOAD_RECEIVE_LIST');
   Theme.ScoreDownloadPopup.TextWebScoreDownload.Text := '';
@@ -939,6 +975,12 @@ begin
     AddButtonText(14, 20, 'Button 1');
 
   Interaction := 0;
+end;
+
+destructor TScreenPopupScoreDownload.Destroy;
+begin
+  Texture_ProgressBar.Free;
+  inherited;
 end;
 
 procedure TScreenPopupScoreDownload.LogSongUpdate(Artist, Title, WebName: UTF8String);
@@ -961,7 +1003,7 @@ end;
 procedure TScreenPopupScoreDownload.SaveScoreSong();
 var
   String_Text, User_Score, Max_Score, Media_Score: string;
-  I, J, Update: integer;
+  J, Update: integer;
   DeleteSongLevel: array [0..2] of boolean;
 begin
 
@@ -1162,6 +1204,7 @@ function TScreenPopupScoreDownload.Draw: boolean;
 var
   I: integer;
 begin
+  Renderer.ClearFrameBuffer(CLEAR_DEPTH);
   inherited Draw;
 
   Text[0].Text := Text_SongSituation;
@@ -1292,36 +1335,25 @@ begin
   width  := Theme.ScoreDownloadPopup.DownloadProgressSong.W;
   height := Theme.ScoreDownloadPopup.DownloadProgressSong.H;
 
-  glColor4f(Theme.ScoreDownloadPopup.DownloadProgressSong.ColR, Theme.ScoreDownloadPopup.DownloadProgressSong.ColG, Theme.ScoreDownloadPopup.DownloadProgressSong.ColB, 1); //Set Color
+  CurProgress := Actual_Song;
+  if (CurProgress > 0) then
+    Progress := CurProgress / Num_Songs
+  else
+    Progress := 0;
 
-  glEnable(GL_TEXTURE_2D);
-  glEnable(GL_BLEND);
-
-  glBindTexture(GL_TEXTURE_2D,  Texture_ProgressBar.TexNum);
-
-  glBegin(GL_QUADS);
-    glTexCoord2f(0, 0);
-    glVertex2f(x, y);
-
-    CurProgress := Actual_Song;
-    if (CurProgress > 0) then
-    begin
-      Progress := CurProgress / Num_Songs;
-      glTexCoord2f((width * Progress) / 8, 0);
-      glVertex2f(x + width * Progress, y);
-
-      glTexCoord2f((width * Progress) / 8, 1);
-      glVertex2f(x + width * Progress, y + height);
-    end;
-
-    glTexCoord2f(0, 1);
-    glVertex2f(x, y + height);
-  glEnd;
-
- glDisable(GL_TEXTURE_2D);
- glDisable(GL_BLEND);
- glcolor4f(1, 0, 0, 1);
-
+  Texture_ProgressBar.X := X;
+  Texture_ProgressBar.Y := Y;
+  Texture_ProgressBar.W := width * Progress;
+  Texture_ProgressBar.H := height;
+  Texture_ProgressBar.ColR := Theme.ScoreDownloadPopup.DownloadProgressSong.ColR;
+  Texture_ProgressBar.ColG := Theme.ScoreDownloadPopup.DownloadProgressSong.ColG;
+  Texture_ProgressBar.ColB := Theme.ScoreDownloadPopup.DownloadProgressSong.ColB;
+  Texture_ProgressBar.Alpha := 1;
+  Texture_ProgressBar.TexX1 := 0;
+  Texture_ProgressBar.TexY1 := 0;
+  Texture_ProgressBar.TexX2 := (width * Progress) / 8;
+  Texture_ProgressBar.TexY2 := 1;
+  Renderer.DrawTexture(Texture_ProgressBar);
 end;
 
 procedure TScreenPopupScoreDownload.DownloadTimeBarWeb();
@@ -1337,35 +1369,25 @@ begin
   width  := Theme.ScoreDownloadPopup.DownloadProgressWeb.W;
   height := Theme.ScoreDownloadPopup.DownloadProgressWeb.H;
 
-  glColor4f(Theme.ScoreDownloadPopup.DownloadProgressWeb.ColR, Theme.ScoreDownloadPopup.DownloadProgressWeb.ColG, Theme.ScoreDownloadPopup.DownloadProgressWeb.ColB, 1); //Set Color
+  CurProgress := Actual_Song + ((Actual_Web - 1) * Num_Songs);
+  if (CurProgress > 0) then
+    Progress := CurProgress / (Num_Songs * Num_Webs)
+  else
+    Progress := 0;
 
-  glEnable(GL_TEXTURE_2D);
-  glEnable(GL_BLEND);
-
-  glBindTexture(GL_TEXTURE_2D, Texture_ProgressBar.TexNum);
-
-  glBegin(GL_QUADS);
-    glTexCoord2f(0, 0);
-    glVertex2f(x, y);
-
-    CurProgress := Actual_Song + ((Actual_Web - 1) * Num_Songs);
-    if (CurProgress > 0) then
-    begin
-      Progress := CurProgress / (Num_Songs * Num_Webs);
-      glTexCoord2f((width * Progress) / 8, 0);
-      glVertex2f(x + width * Progress, y);
-
-      glTexCoord2f((width * Progress) / 8, 1);
-      glVertex2f(x + width * Progress, y + height);
-    end;
-
-    glTexCoord2f(0, 1);
-    glVertex2f(x, y + height);
-  glEnd;
-
- glDisable(GL_TEXTURE_2D);
- glDisable(GL_BLEND);
- glcolor4f(1, 0, 0, 1);
+  Texture_ProgressBar.X := X;
+  Texture_ProgressBar.Y := Y;
+  Texture_ProgressBar.W := width * Progress;
+  Texture_ProgressBar.H := height;
+  Texture_ProgressBar.ColR := Theme.ScoreDownloadPopup.DownloadProgressWeb.ColR;
+  Texture_ProgressBar.ColG := Theme.ScoreDownloadPopup.DownloadProgressWeb.ColG;
+  Texture_ProgressBar.ColB := Theme.ScoreDownloadPopup.DownloadProgressWeb.ColB;
+  Texture_ProgressBar.Alpha := 1;
+  Texture_ProgressBar.TexX1 := 0;
+  Texture_ProgressBar.TexY1 := 0;
+  Texture_ProgressBar.TexX2 := (width * Progress) / 8;
+  Texture_ProgressBar.TexY2 := 1;
+  Renderer.DrawTexture(Texture_ProgressBar);
 
 end;
 
@@ -1485,7 +1507,8 @@ end;
 
 function TScreenPopup.Draw: boolean;
 begin
-  Draw := inherited Draw;
+  Renderer.ClearFrameBuffer(CLEAR_DEPTH);
+  Result := inherited Draw;
 end;
 
 procedure TScreenPopup.OnShow;
@@ -1543,17 +1566,27 @@ end;
 function TScreenPopupHelp.ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean;
 var
   pos:  double;
+  PrevAudio: integer;
+  PrevVocals: integer;
+  PrevSfx: integer;
+  PrevPreview: integer;
+  PrevInteractionIndex: integer;
 begin
   Result := true;
-  If (PressedDown) Then
+  if (PressedDown) then
   begin // Key Down
+    PrevAudio := VolumeAudioIndex;
+    PrevVocals := VolumeVocalsIndex;
+    PrevSfx := VolumeSfxIndex;
+    PrevPreview := VolumePreviewIndex;
+
     pos := Help.GetScrollPos();
     case PressedKey of
       SDLK_TAB,
       SDLK_ESCAPE,
       SDLK_BACKSPACE :
         begin
-          Visible:=False;
+          ClosePopup;
 //          if (Help.GetHelpID() = ScreenSing.GetHelpID()) then
 //            ScreenSing.Pause;
 
@@ -1562,36 +1595,139 @@ begin
 
       SDLK_RETURN:
         begin
-          Visible:=False;
+          ClosePopup;
           Result := false;
+        end;
+
+      SDLK_K:
+        begin
+          ApplyVolumeChanges(PrevAudio, PrevVocals, PrevSfx, PrevPreview);
+          ShowPopup(ResumeSingAfterPopup);
+          Exit;
         end;
 
       SDLK_DOWN:
         begin
+          PrevInteractionIndex := Interaction;
           InteractNext;
-          if pos<(1-step) then
-            Help.SetScrollPos(pos+step)
-          else if pos>0 then
-            Help.SetScrollPos(1);
+          if IsVolumeSelectInteraction(Interaction) and (Interaction <= PrevInteractionIndex) then
+          begin
+            Interaction := PrevInteractionIndex;
+            if pos < (1 - step) then
+              Help.SetScrollPos(pos + step)
+            else if pos > 0 then
+              Help.SetScrollPos(1);
+          end;
         end;
       SDLK_UP:
         begin
-          InteractPrev;
-          if pos>step then
-            Help.SetScrollPos(pos-step)
-          else if pos>0 then
-            Help.SetScrollPos(0);
+          if pos > step then
+            Help.SetScrollPos(pos - step)
+          else if pos > 0 then
+            Help.SetScrollPos(0)
+          else begin
+            PrevInteractionIndex := Interaction;
+            InteractPrev;
+            if IsVolumeSelectInteraction(Interaction) and (Interaction >= PrevInteractionIndex) then
+              Interaction := PrevInteractionIndex;
+          end;
         end;
 
-      SDLK_RIGHT: InteractNext;
-      SDLK_LEFT: InteractPrev;
+      SDLK_RIGHT:
+        begin
+          if IsVolumeSelectInteraction(Interaction) then
+          begin
+            if not StepVolumeSliderFromKeyboard(1) then
+              InteractInc;
+          end
+          else
+            InteractNext;
+        end;
+      SDLK_LEFT:
+        begin
+          if IsVolumeSelectInteraction(Interaction) then
+          begin
+            if not StepVolumeSliderFromKeyboard(-1) then
+              InteractDec;
+          end
+          else
+            InteractPrev;
+        end;
     end;
+
+    ApplyVolumeChanges(PrevAudio, PrevVocals, PrevSfx, PrevPreview);
   end;
+end;
+
+function TScreenPopupHelp.ParseMouse(MouseButton: integer; BtnDown: boolean; X, Y: integer): boolean;
+var
+  PrevAudio: integer;
+  PrevVocals: integer;
+  PrevSfx: integer;
+  PrevPreview: integer;
+begin
+  PrevAudio := VolumeAudioIndex;
+  PrevVocals := VolumeVocalsIndex;
+  PrevSfx := VolumeSfxIndex;
+  PrevPreview := VolumePreviewIndex;
+
+  HandleVolumeSliderDrag(MouseButton, BtnDown, X, Y);
+
+  Result := inherited ParseMouse(MouseButton, BtnDown, X, Y);
+
+  ApplyVolumeChanges(PrevAudio, PrevVocals, PrevSfx, PrevPreview);
 end;
 
 constructor TScreenPopupHelp.Create;
 begin
   inherited Create;
+
+  VolumeAudioSelectId := -1;
+  VolumeVocalsSelectId := -1;
+  VolumeSfxSelectId := -1;
+  VolumePreviewSelectId := -1;
+  CursorForcedVisible := false;
+  ResumeSingAfterPopup := false;
+  VolumeSettingsDirty := false;
+  DraggingVolumeSelectId := -1;
+
+  BuildVolumeOptions;
+
+  VolumeAudioIndex := EnsureRange(Ini.AudioVolume, 0, 100);
+  VolumeVocalsIndex := EnsureRange(Ini.VocalsVolume, 0, 100);
+  VolumeSfxIndex := EnsureRange(Ini.SfxVolume, 0, 100);
+  VolumePreviewIndex := EnsureRange(Ini.PreviewVolume, 0, 100);
+
+  if Length(VolumeOptions) > 0 then
+  begin
+    VolumeAudioSelectId := AddSelectSlide(Theme.HelpPopup.SelectVolAudio, VolumeAudioIndex, VolumeOptions);
+    if VolumeAudioSelectId >= 0 then
+    begin
+      SelectsS[VolumeAudioSelectId].ClickSelectsPosition := true;
+      SelectsS[VolumeAudioSelectId].Visible := false;
+    end;
+
+    VolumeVocalsSelectId := AddSelectSlide(Theme.HelpPopup.SelectVolVocals, VolumeVocalsIndex, VolumeOptions);
+    if VolumeVocalsSelectId >= 0 then
+    begin
+      SelectsS[VolumeVocalsSelectId].ClickSelectsPosition := true;
+      SelectsS[VolumeVocalsSelectId].Visible := false;
+    end;
+
+    VolumeSfxSelectId := AddSelectSlide(Theme.HelpPopup.SelectVolSfx, VolumeSfxIndex, VolumeOptions);
+    if VolumeSfxSelectId >= 0 then
+    begin
+      SelectsS[VolumeSfxSelectId].ClickSelectsPosition := true;
+      SelectsS[VolumeSfxSelectId].Visible := false;
+    end;
+
+    VolumePreviewSelectId := AddSelectSlide(Theme.HelpPopup.SelectVolPreview, VolumePreviewIndex, VolumeOptions);
+    if VolumePreviewSelectId >= 0 then
+    begin
+      SelectsS[VolumePreviewSelectId].ClickSelectsPosition := true;
+      SelectsS[VolumePreviewSelectId].Visible := false;
+    end;
+  end;
 
   AddButton(Theme.HelpPopup.Button1);
   if (Length(Button[0].Text) = 0) then
@@ -1600,33 +1736,422 @@ begin
   Interaction := 0;
 end;
 
+procedure TScreenPopupHelp.BuildVolumeOptions;
+var
+  I: integer;
+begin
+  if Length(VolumeOptions) > 0 then
+    Exit;
+
+  SetLength(VolumeOptions, 101);
+  for I := 0 to 100 do
+    VolumeOptions[I] := IntToStr(I);
+end;
+
+procedure TScreenPopupHelp.SyncVolumeSliders;
+begin
+  VolumeAudioIndex := EnsureRange(Ini.AudioVolume, 0, 100);
+  if VolumeAudioSelectId >= 0 then
+  begin
+    SelectsS[VolumeAudioSelectId].SelectedOption := VolumeAudioIndex;
+    SelectsS[VolumeAudioSelectId].Visible := Theme.HelpPopup.SelectVolAudio.W > 0;
+    ConfigureVolumeSlider(VolumeAudioSelectId);
+  end;
+
+  VolumeVocalsIndex := EnsureRange(Ini.VocalsVolume, 0, 100);
+  if VolumeVocalsSelectId >= 0 then
+  begin
+    SelectsS[VolumeVocalsSelectId].SelectedOption := VolumeVocalsIndex;
+    SelectsS[VolumeVocalsSelectId].Visible := Theme.HelpPopup.SelectVolVocals.W > 0;
+    ConfigureVolumeSlider(VolumeVocalsSelectId);
+  end;
+
+  VolumeSfxIndex := EnsureRange(Ini.SfxVolume, 0, 100);
+  if VolumeSfxSelectId >= 0 then
+  begin
+    SelectsS[VolumeSfxSelectId].SelectedOption := VolumeSfxIndex;
+    SelectsS[VolumeSfxSelectId].Visible := Theme.HelpPopup.SelectVolSfx.W > 0;
+    ConfigureVolumeSlider(VolumeSfxSelectId);
+  end;
+
+  VolumePreviewIndex := EnsureRange(Ini.PreviewVolume, 0, 100);
+  if VolumePreviewSelectId >= 0 then
+  begin
+    SelectsS[VolumePreviewSelectId].SelectedOption := VolumePreviewIndex;
+    SelectsS[VolumePreviewSelectId].Visible := Theme.HelpPopup.SelectVolPreview.W > 0;
+    ConfigureVolumeSlider(VolumePreviewSelectId);
+  end;
+end;
+
+procedure TScreenPopupHelp.ConfigureVolumeSlider(SelectId: integer);
+var
+  Slider: TSelectSlide;
+  I: integer;
+  TextHeight: real;
+begin
+  if not HasVolumeSlider(SelectId) then
+    Exit;
+
+  Slider := SelectsS[SelectId];
+
+  if Length(Slider.TextOpt) > 0 then
+  begin
+    for I := Low(Slider.TextOpt) to High(Slider.TextOpt) do
+      Slider.TextOpt[I].Visible := false;
+  end;
+
+  Slider.Text.Align := 1;
+  Slider.Text.X := Slider.Texture.X + (Slider.Texture.W / 2);
+  TextHeight := Slider.Text.Size;
+  Slider.Text.Y := Slider.Texture.Y + (Slider.Texture.H - TextHeight) / 2;
+
+  Slider.TextureSBG.X := Slider.Texture.X;
+  Slider.TextureSBG.Y := Slider.Texture.Y;
+  Slider.TextureSBG.W := Slider.Texture.W;
+  Slider.TextureSBG.H := Slider.Texture.H;
+  Slider.SBGW := Slider.Texture.W;
+end;
+
+function TScreenPopupHelp.HasVolumeSlider(SelectId: integer): boolean;
+begin
+  Result := (SelectId >= 0) and (SelectId <= High(SelectsS));
+end;
+
+procedure TScreenPopupHelp.ConvertMouseToRenderCoords(X, Y: integer; out RenderX, RenderY: integer);
+begin
+  RenderX := Round((X / (ScreenW / Screens)) * RenderW);
+  if (RenderX > RenderW) then
+    RenderX := RenderX - RenderW;
+  RenderY := Round((Y / ScreenH) * RenderH);
+end;
+
+function TScreenPopupHelp.VolumeSliderAtPosition(X, Y: integer): integer;
+var
+  Candidates: array[0..3] of integer;
+  Index: integer;
+  SelectId: integer;
+  Slider: TSelectSlide;
+begin
+  Candidates[0] := VolumeAudioSelectId;
+  Candidates[1] := VolumeVocalsSelectId;
+  Candidates[2] := VolumeSfxSelectId;
+  Candidates[3] := VolumePreviewSelectId;
+
+  Result := -1;
+  for Index := Low(Candidates) to High(Candidates) do
+  begin
+    SelectId := Candidates[Index];
+    if not HasVolumeSlider(SelectId) then
+      Continue;
+
+    Slider := SelectsS[SelectId];
+    if (not Slider.Visible) or (Slider.TextureSBG.W <= 0) or (Slider.TextureSBG.H <= 0) then
+      Continue;
+
+    if (X >= Slider.TextureSBG.X) and (X <= Slider.TextureSBG.X + Slider.TextureSBG.W) and
+       (Y >= Slider.TextureSBG.Y) and (Y <= Slider.TextureSBG.Y + Slider.TextureSBG.H) then
+    begin
+      Exit(SelectId);
+    end;
+  end;
+end;
+
+procedure TScreenPopupHelp.UpdateVolumeSliderFromPointer(SelectId, X: integer);
+var
+  Slider: TSelectSlide;
+  Ratio: double;
+  NewIndex: integer;
+  MaxIndex: integer;
+begin
+  if not HasVolumeSlider(SelectId) then
+    Exit;
+
+  Slider := SelectsS[SelectId];
+  if (not Slider.Visible) or (Slider.TextureSBG.W <= 0) or (Length(Slider.TextOptT) = 0) then
+    Exit;
+
+  MaxIndex := High(Slider.TextOptT);
+  if MaxIndex < 0 then
+    Exit;
+
+  Ratio := (X - Slider.TextureSBG.X) / Slider.TextureSBG.W;
+  if Ratio < 0 then
+    Ratio := 0
+  else if Ratio > 1 then
+    Ratio := 1;
+
+  NewIndex := Round(Ratio * MaxIndex);
+  Slider.SetSelectOpt(NewIndex);
+end;
+
+function TScreenPopupHelp.HandleVolumeSliderDrag(MouseButton: integer; BtnDown: boolean; X, Y: integer): boolean;
+var
+  RenderX, RenderY: integer;
+  TargetSelect: integer;
+begin
+  Result := false;
+
+  ConvertMouseToRenderCoords(X, Y, RenderX, RenderY);
+
+  if (MouseButton = SDL_BUTTON_LEFT) and BtnDown then
+  begin
+    TargetSelect := VolumeSliderAtPosition(RenderX, RenderY);
+    if TargetSelect >= 0 then
+    begin
+      DraggingVolumeSelectId := TargetSelect;
+      UpdateVolumeSliderFromPointer(TargetSelect, RenderX);
+      Result := true;
+    end;
+    Exit;
+  end;
+
+  if (MouseButton = 0) and BtnDown then
+  begin
+    if DraggingVolumeSelectId >= 0 then
+    begin
+      UpdateVolumeSliderFromPointer(DraggingVolumeSelectId, RenderX);
+      Result := true;
+    end;
+    Exit;
+  end;
+
+  if (not BtnDown) and (MouseButton = SDL_BUTTON_LEFT) then
+  begin
+    if DraggingVolumeSelectId >= 0 then
+    begin
+      UpdateVolumeSliderFromPointer(DraggingVolumeSelectId, RenderX);
+      DraggingVolumeSelectId := -1;
+      Result := true;
+    end;
+    Exit;
+  end;
+
+  if not BtnDown then
+    DraggingVolumeSelectId := -1;
+end;
+
+procedure TScreenPopupHelp.ApplyVolumeChanges(const PrevAudio, PrevVocals, PrevSfx, PrevPreview: integer);
+var
+  VolumeChanged: boolean;
+begin
+  VolumeChanged := false;
+
+  if VolumeAudioIndex <> PrevAudio then
+  begin
+    SetAudioVolumePercent(EnsureRange(VolumeAudioIndex, 0, 100));
+    VolumeChanged := true;
+  end;
+
+  if VolumeVocalsIndex <> PrevVocals then
+  begin
+    SetVocalsVolumePercent(EnsureRange(VolumeVocalsIndex, 0, 100));
+    VolumeChanged := true;
+  end;
+
+  if VolumeSfxIndex <> PrevSfx then
+  begin
+    SetSfxVolumePercent(EnsureRange(VolumeSfxIndex, 0, 100));
+    VolumeChanged := true;
+  end;
+
+  if VolumePreviewIndex <> PrevPreview then
+  begin
+    SetPreviewVolumePercent(EnsureRange(VolumePreviewIndex, 0, 100));
+    VolumeChanged := true;
+  end;
+
+  if VolumeChanged then
+  begin
+    VolumeSettingsDirty := true;
+    if ScreenOptionsSound <> nil then
+      ScreenOptionsSound.SyncVolumeSlidersFromIni;
+  end;
+end;
+
+procedure TScreenPopupHelp.DrawVolumeControls;
+begin
+  DrawVolumeBarFill(VolumeAudioSelectId, VolumeAudioIndex);
+  DrawVolumeBarFill(VolumeVocalsSelectId, VolumeVocalsIndex);
+  DrawVolumeBarFill(VolumeSfxSelectId, VolumeSfxIndex);
+  DrawVolumeBarFill(VolumePreviewSelectId, VolumePreviewIndex);
+
+  DrawVolumeLabel(VolumeAudioSelectId);
+  DrawVolumeLabel(VolumeVocalsSelectId);
+  DrawVolumeLabel(VolumeSfxSelectId);
+  DrawVolumeLabel(VolumePreviewSelectId);
+end;
+
+procedure TScreenPopupHelp.DrawVolumeBarFill(SelectId, Value: integer);
+const
+  BaseColor: array[0..2] of Single = (0.20, 0.20, 0.22);
+  FillColorLow: array[0..2] of Single = (0.35, 0.35, 0.40);
+  FillColorHigh: array[0..2] of Single = (0.95, 0.95, 0.98);
+  PreferredFillRatio: Single = 0.33;
+  OutlineColor: array[0..2] of Single = (0.05, 0.05, 0.05);
+  BaseAlpha = 0.75;
+  FillAlpha = 0.9;
+  OutlineAlpha = 0.9;
+var
+  Slider: TSelectSlide;
+  Ratio: Single;
+  FillWidth: Single;
+  BaseX, BaseY, BaseW, BaseH: Single;
+  FillR, FillG, FillB: Single;
+begin
+  if not HasVolumeSlider(SelectId) then
+    Exit;
+
+  Slider := SelectsS[SelectId];
+  if not Slider.Visible then
+    Exit;
+
+  BaseX := Slider.Texture.X;
+  BaseY := Slider.Texture.Y;
+  BaseW := Slider.Texture.W;
+  BaseH := Slider.Texture.H;
+
+  if (BaseW <= 0) or (BaseH <= 0) then
+    Exit;
+
+  Renderer.DrawQuad(BaseX, BaseY, 0, BaseW, BaseH, BaseColor[0], BaseColor[1], BaseColor[2], BaseAlpha);
+
+  Ratio := EnsureRange(Value, 0, 100) / 100.0;
+  FillWidth := BaseW * Ratio;
+  FillR := FillColorLow[0] + (FillColorHigh[0] - FillColorLow[0]) * PreferredFillRatio;
+  FillG := FillColorLow[1] + (FillColorHigh[1] - FillColorLow[1]) * PreferredFillRatio;
+  FillB := FillColorLow[2] + (FillColorHigh[2] - FillColorLow[2]) * PreferredFillRatio;
+
+  if FillWidth > 0 then
+    Renderer.DrawQuad(BaseX, BaseY, 0, FillWidth, BaseH, FillR, FillG, FillB, FillAlpha);
+
+  Renderer.DrawBoundedBox(BaseX, BaseY, BaseX + BaseW, BaseY + BaseH, 0, 2, OutlineColor[0], OutlineColor[1], OutlineColor[2], OutlineAlpha);
+end;
+
+procedure TScreenPopupHelp.DrawVolumeLabel(SelectId: integer);
+begin
+  if not HasVolumeSlider(SelectId) then
+    Exit;
+
+  if not SelectsS[SelectId].Visible then
+    Exit;
+
+  SelectsS[SelectId].Text.Draw;
+end;
+
+procedure TScreenPopupHelp.FocusVolumeSlider;
+var
+  I: integer;
+begin
+  for I := Low(Interactions) to High(Interactions) do
+  begin
+    if IsVolumeSelectInteraction(I) then
+    begin
+      if (Interactions[I].Num >= 0) and (Interactions[I].Num <= High(SelectsS)) and
+         SelectsS[Interactions[I].Num].Visible then
+      begin
+        Interaction := I;
+        Exit;
+      end;
+    end;
+  end;
+end;
+
+function TScreenPopupHelp.IsVolumeSelectInteraction(Index: integer): boolean;
+var
+  InteractionType: integer;
+  InteractionNum: integer;
+begin
+  if (Index < 0) or (Index > High(Interactions)) then
+    Exit(false);
+
+  InteractionType := Interactions[Index].Typ;
+  if InteractionType <> iSelectS then
+    Exit(false);
+
+  InteractionNum := Interactions[Index].Num;
+  Result := (InteractionNum = VolumeAudioSelectId) or
+            (InteractionNum = VolumeVocalsSelectId) or
+            (InteractionNum = VolumeSfxSelectId) or
+            (InteractionNum = VolumePreviewSelectId);
+end;
+
+function TScreenPopupHelp.StepVolumeSliderFromKeyboard(Delta: integer): boolean;
+const
+  StepSize = 10;
+var
+  SelectId: integer;
+  Slider: TSelectSlide;
+  Current: integer;
+  Target: integer;
+  MaxIndex: integer;
+begin
+  Result := false;
+  if Delta = 0 then
+    Exit;
+
+  if (Interaction < 0) or (Interaction > High(Interactions)) then
+    Exit;
+
+  if not IsVolumeSelectInteraction(Interaction) then
+    Exit;
+
+  SelectId := Interactions[Interaction].Num;
+  if not HasVolumeSlider(SelectId) then
+    Exit;
+
+  Slider := SelectsS[SelectId];
+  if Slider = nil then
+    Exit;
+
+  MaxIndex := High(Slider.TextOptT);
+  if MaxIndex < 0 then
+    Exit;
+
+  Current := Slider.SelectedOption;
+
+  if Delta > 0 then
+  begin
+    Target := ((Current + StepSize - 1) div StepSize) * StepSize;
+    if Target <= Current then
+      Target := Target + StepSize;
+  end
+  else
+  begin
+    Target := (Current div StepSize) * StepSize;
+    if Target >= Current then
+      Target := Target - StepSize;
+  end;
+
+  Target := EnsureRange(Target, 0, MaxIndex);
+  if Target = Current then
+    Exit;
+
+  Slider.SetSelectOpt(Target);
+  Result := true;
+end;
+
 function TScreenPopupHelp.Draw: boolean;
 var
   abs:  real;
 begin
 //inherited Draw; TODO: FIX
+  Renderer.ClearFrameBuffer(CLEAR_DEPTH);
   if step<1 then
     abs := 20
   else
     abs := 5;
 
   //Background:
-  glEnable(GL_BLEND);
-  glbegin(gl_quads);
-    glColor4f(0.2, 0.2, 0.2, 0.8); glVertex2f(Rect.left-5, Rect.top-5);
-    glColor4f(0.2, 0.2, 0.2, 0.8); glVertex2f(Rect.right+abs, Rect.top-5);
-    glColor4f(0.2, 0.2, 0.2, 0.8); glVertex2f(Rect.right+abs, Rect.bottom+5);
-    glColor4f(0.2, 0.2, 0.2, 0.8); glVertex2f(Rect.left-5, Rect.bottom+5);
-  glEnd;
-  glDisable(GL_BLEND);
-  glScissor(Rect.left-1, ScreenH-Rect.bottom-1, Rect.right-Rect.left+2, Rect.bottom-Rect.top+2);
-  glScissor(round((Rect.left-1)*(ScreenW/Screens)/RenderW+(ScreenW/Screens)*(ScreenAct-1)),
+  Renderer.DrawQuad(Rect.Left - 5, Rect.Top - 5, 0, Rect.Right + abs - Rect.Left + 5, Rect.Bottom - Rect.top + 10, 0.2, 0.2, 0.2, 0.8);
+  Renderer.SetScissorRect(Rect.left-1, ScreenH-Rect.bottom-1, Rect.right-Rect.left+2, Rect.bottom-Rect.top+2);
+  Renderer.SetScissorRect(round((Rect.left-1)*(ScreenWPerScreen)/RenderW+(ScreenWPerScreen)*(ScreenAct-1)),
     round((RenderH-Rect.bottom-1)*ScreenH/RenderH),
-    round((Rect.right-Rect.left+2)*(ScreenW/Screens)/RenderW),
+    round((Rect.right-Rect.left+2)*(ScreenWPerScreen)/RenderW),
     round((Rect.bottom-Rect.top+2)*ScreenH/RenderH));
-  glEnable(GL_SCISSOR_TEST);
+  Renderer.ScissorTest := true;
   DrawTable();
-  glDisable(GL_SCISSOR_TEST);
+  Renderer.ScissorTest := false;
+  DrawVolumeControls;
   if step<1 then
     DrawScroll(Rect.right+5, Rect.top, 10, Rect.bottom-Rect.top, Help.GetScrollPos(), barH);
 end;
@@ -1639,7 +2164,59 @@ procedure TScreenPopupHelp.onHide;
 begin
 end;
 
-procedure TScreenPopupHelp.ShowPopup();
+procedure TScreenPopupHelp.ForceCursorVisibleForSing;
+begin
+  if CursorForcedVisible then
+    Exit;
+
+  if (Display <> nil) and (Display.CurrentScreen = @ScreenSing) and
+     Display.Cursor_HiddenByScreen then
+  begin
+    CursorForcedVisible := true;
+    Display.SetCursor(cshIgnoreSingScreen);
+  end;
+end;
+
+procedure TScreenPopupHelp.RestoreCursorAfterPopup;
+begin
+  if not CursorForcedVisible then
+    Exit;
+
+  CursorForcedVisible := false;
+
+  if (Display <> nil) and (Display.CurrentScreen = @ScreenSing) then
+    Display.SetCursor;
+end;
+
+procedure TScreenPopupHelp.ClosePopup;
+begin
+  if not Visible then
+    Exit;
+
+  Visible := False;
+  RestoreCursorAfterPopup;
+
+  if VolumeSettingsDirty then
+  begin
+    Ini.Save;
+    VolumeSettingsDirty := false;
+  end;
+
+  if ResumeSingAfterPopup and (ScreenSing <> nil) then
+  begin
+    if ScreenSing.Paused then
+      ScreenSing.Pause;
+  end;
+
+  ResumeSingAfterPopup := false;
+end;
+
+procedure TScreenPopupHelp.ShowPopup;
+begin
+  ShowPopup(false);
+end;
+
+procedure TScreenPopupHelp.ShowPopup(const ResumeSingAfterClose: boolean);
 var
   I, J, K:  integer;
   line:     integer;
@@ -1684,9 +2261,19 @@ var
     TextsGFX[line].texts[tline].Italic := Italic;
   end;
 
+var
+  WasVisible: boolean;
 begin
+  WasVisible := Visible;
+  ResumeSingAfterPopup := ResumeSingAfterClose;
   Interaction := 0; //Reset Interaction
+  if not WasVisible then
+    VolumeSettingsDirty := false;
   Visible := True;  //Set Visible
+
+  SyncVolumeSliders;
+  ForceCursorVisibleForSing;
+  FocusVolumeSlider;
 
   SetLength(TextsGFX, 0);
   line := 0;
@@ -1705,7 +2292,7 @@ begin
 
   Rect.left := 25;
   Rect.right := 770;
-  Rect.top := 25;
+  Rect.top := 120;
   Rect.bottom := 575;
 
   KeyEnd := round((Rect.right - Rect.left)*0.4);
@@ -1762,7 +2349,7 @@ begin
     tempStr := '';
     for I := 0 to SL.Count-1 do
     begin
-      if glTextWidth(PChar(tempStr + SL[I] + ' ')) <= (Rect.right - Rect.left - 10) then
+      if TextWidth(PChar(tempStr + SL[I] + ' ')) <= (Rect.right - Rect.left - 10) then
       begin
         if I<SL.Count-1 then
           tempStr := tempStr + SL[I] + ' '
@@ -1847,7 +2434,7 @@ begin
         tempStr := '';
         for I := 0 to SL.Count-1 do
         begin
-          if glTextWidth(PChar(tempStr + SL[I] + ' ')) <= (Rect.right - Rect.left - 10) then
+          if TextWidth(PChar(tempStr + SL[I] + ' ')) <= (Rect.right - Rect.left - 10) then
           begin
             if I<SL.Count-1 then
               tempStr := tempStr + SL[I] + ' '
@@ -1911,7 +2498,7 @@ begin
     AddLine(line, 1, Rect.right, TextsGFX[line].Y, Rect.right, TextsGFX[line].Y + TextsGFX[line].H);
 
     tempStr := msg.Sections[K].name;
-    NewText(Rect.left + round((Rect.right - Rect.left - 10)/2 - glTextWidth((PChar(tempStr)))/2), TextsGFX[line].Y + 2);
+    NewText(Rect.left + round((Rect.right - Rect.left - 10)/2 - TextWidth((PChar(tempStr)))/2), TextsGFX[line].Y + 2);
     TextsGFX[line].texts[tline].text := tempStr;
 
     NewLine(round(fieldh/2), 3);
@@ -1938,7 +2525,7 @@ begin
       tempStr := '';
       for I := 0 to Length(msg.Sections[K].Keys[J].Key) - 1 do
       begin
-        if glTextWidth(PChar(tempStr + msg.Sections[K].Keys[J].Key[I] + '+')) <= (KeyEnd - Rect.left - 10) then
+        if TextWidth(PChar(tempStr + msg.Sections[K].Keys[J].Key[I] + '+')) <= (KeyEnd - Rect.left - 10) then
         begin
           if I<Length(msg.Sections[K].Keys[J].Key)-1 then
             tempStr := tempStr + msg.Sections[K].Keys[J].Key[I] + '+'
@@ -1975,7 +2562,7 @@ begin
         tempStr := '';
         for I := 0 to SL.Count-1 do
         begin
-          if glTextWidth(PChar(tempStr + SL[I] + ' ')) <= (Rect.right - KeyEnd - 10) then
+          if TextWidth(PChar(tempStr + SL[I] + ' ')) <= (Rect.right - KeyEnd - 10) then
           begin
             if I<SL.Count-1 then
               tempStr := tempStr + SL[I] + ' '
@@ -2048,10 +2635,13 @@ begin
   offset := round(Help.GetScrollPos()*(max_high-Rect.Bottom));
 
   I := 0;
+  if (Length(TextsGFX) = 0) then
+    Exit;
   while (I<Length(TextsGFX)) and (h<maxh) do
   begin
     if (TextsGFX[I].Y >= offset-20) then
     begin
+
       for J := 0 to Length(TextsGFX[I].lines) - 1 do
         DrawLine(I, J, offset);
       for J := 0 to Length(TextsGFX[I].texts) - 1 do
@@ -2065,50 +2655,32 @@ end;
 
 procedure TScreenPopupHelp.DrawLine(line, index, Y: integer);
 begin
-  glColor4f(1, 1, 1, 1);
-  glLineWidth(2);
-  glBegin(GL_LINES);
-    glVertex2f(TextsGFX[line].lines[index].fX, TextsGFX[line].lines[index].fY - Y);
-    glVertex2f(TextsGFX[line].lines[index].tX, TextsGFX[line].lines[index].tY - Y);
-  glEnd;
+  Renderer.DrawLine(TextsGFX[line].lines[index].fX, TextsGFX[line].lines[index].fY - Y, TextsGFX[line].lines[index].tX, TextsGFX[line].lines[index].tY - Y, 0, 2, 1, 1 ,1, 1);
 end;
 
 procedure TScreenPopupHelp.DrawText(line, index, Y: integer);
 begin
-  glColor4f(1, 1, 1, 1);
   SetFontFamily(TextsGFX[line].texts[index].Font);
   SetFontStyle(TextsGFX[line].texts[index].Style);
   SetFontItalic(TextsGFX[line].texts[index].Italic);
   SetFontSize(TextsGFX[line].texts[index].Size);
   SetFontPos (TextsGFX[line].texts[index].X, TextsGFX[line].texts[index].Y - Y);
-  glPrint(PChar(TextsGFX[line].texts[index].text));
+  SetFontColor(1, 1, 1, 1);
+  PrintText(PChar(TextsGFX[line].texts[index].text));
 end;
 
 procedure TScreenPopupHelp.DrawScroll(X, Y, W, H: integer; pos, len: double);
 var
   fY, tY: double;
 begin
-  glColor4f(1, 1, 1, 1);
-
-  glLineWidth(1);
-  glBegin(GL_LINE_LOOP);
-    glVertex2f(X, Y);
-    glVertex2f(X+W, Y);
-    glVertex2f(X+W, Y+H);
-    glVertex2f(X, Y+H);
-  glEnd;
+  Renderer.DrawBoundedBox(X, Y, X + W, Y + H, 0, 1, 1, 1, 1, 1);
 
   fY := Y+(H-H*len)*Pos;
   tY := fY+H*len;
   if tY+0.001>=Y+H then
     tY := Y+H;
 
-  glBegin(GL_QUADS);
-    glVertex2f(X, fY);
-    glVertex2f(X+W, fY);
-    glVertex2f(X+W, tY);
-    glVertex2f(X, tY);
-  glEnd;
+  Renderer.DrawQuad(X, fY, 0, W, ty - fy, 1, 1, 1, 1);
 end;
 
 end.

@@ -100,8 +100,8 @@ type
 
       // use to analyze sound from buffers to get new pitch
       procedure AnalyzeBuffer;
-      procedure LockAnalysisBuffer();   {$IFDEF HasInline}inline;{$ENDIF}
-      procedure UnlockAnalysisBuffer(); {$IFDEF HasInline}inline;{$ENDIF}
+      procedure LockAnalysisBuffer();
+      procedure UnlockAnalysisBuffer();
 
       function MaxSampleVolume: single;
       property ToneString: string READ GetToneString;
@@ -191,10 +191,16 @@ type
     private
       Started: boolean;
     protected
+      ScanMode: TAudioInputScanMode;
+      SeenDeviceNames: array of UTF8String;
+
+      procedure PrepareDeviceScan(AScanMode: TAudioInputScanMode);
+      function IsDeviceAssigned(const name: UTF8String): boolean;
+      function ShouldProbeDevice(const name: UTF8String): boolean;
       function UnifyDeviceName(const name: UTF8String; deviceIndex: integer): UTF8String;
     public
       function GetName: String;           virtual; abstract;
-      function InitializeRecord: boolean; virtual; abstract;
+      function InitializeRecord(ScanMode: TAudioInputScanMode): boolean; virtual; abstract;
       function FinalizeRecord: boolean;   virtual;
 
       procedure CaptureStart;
@@ -372,9 +378,9 @@ begin
   LockAnalysisBuffer();
   try
 
-    // find maximum volume of first 1024 samples
+    // find maximum volume across the analysis buffer
     MaxVolume := 0;
-    for SampleIndex := 0 to 1023 do
+    for SampleIndex := 0 to AnalysisBufferSize - 1 do
     begin
       Volume := Abs(AnalysisBuffer[SampleIndex]) / -Low(Smallint);
       if Volume > MaxVolume then
@@ -609,7 +615,7 @@ var
   i: integer;
 begin
   inherited;
-  SetLength(Sound, UIni.IMaxPlayerCount);
+  SetLength(Sound, UIni.PlayerCapacity);
   for i := 0 to High(Sound) do
     Sound[i] := TCaptureBuffer.Create;
 end;
@@ -701,10 +707,14 @@ function TAudioInputProcessor.ValidateSettings: integer;
 var
   I, J: integer;
   PlayerID: integer;
-  PlayerMap: array [0 .. UIni.IMaxPlayerCount - 1] of boolean;
+  MaxPlayerID: integer;
+  PlayerMap: array of boolean;
   InputDevice: TAudioInputDevice;
   InputDeviceCfg: PInputDeviceConfig;
 begin
+  SetLength(PlayerMap, UIni.PlayerCapacity);
+  MaxPlayerID := Length(PlayerMap);
+
   // mark all players as unassigned
   for I := 0 to High(PlayerMap) do
     PlayerMap[I] := false;
@@ -721,6 +731,10 @@ begin
       PlayerID := InputDeviceCfg.ChannelToPlayerMap[J];
       if (PlayerID <> CHANNEL_OFF) then
       begin
+        // avoid out-of-bounds access when switching between game versions with different max player counts
+        if (PlayerID < 1) or (PlayerID > MaxPlayerID) then
+          continue;
+
         // check if player is already assigned to another device/channel
         if (PlayerMap[PlayerID - 1]) then
         begin
@@ -808,35 +822,55 @@ var
   SampleSize:              integer;
   SamplesPerChannel:       integer;
   i:                       integer;
+  SourcePtr:               PByte;
+  DestPtr:                 PByte;
 begin
   AudioFormat := InputDevice.AudioFormat;
+  if (AudioFormat = nil) then
+    Exit;
+
   SampleSize := AudioSampleSize[AudioFormat.Format];
+  if (SampleSize <= 0) or (AudioFormat.FrameSize <= 0) then
+    Exit;
+
   SamplesPerChannel := Size div AudioFormat.FrameSize;
+  if (SamplesPerChannel <= 0) then
+    Exit;
 
   SingleChannelBufferSize := SamplesPerChannel * SampleSize;
+  if (SingleChannelBufferSize <= 0) then
+    Exit;
+
   GetMem(SingleChannelBuffer, SingleChannelBufferSize);
-
-  // process channels
-  for ChannelIndex := 0 to High(InputDevice.CaptureChannel) do
-  begin
-    CaptureChannel := InputDevice.CaptureChannel[ChannelIndex];
-    // check if a capture buffer was assigned, otherwise there is nothing to do
-    if (CaptureChannel <> nil) then
+  try
+    // process channels
+    for ChannelIndex := 0 to High(InputDevice.CaptureChannel) do
     begin
-      // set offset according to channel index
-      MultiChannelBuffer := @Buffer[ChannelIndex * SampleSize];
-      // separate channel-data from interleaved multi-channel (e.g. stereo) data
-      for i := 0 to SamplesPerChannel-1 do
+      CaptureChannel := InputDevice.CaptureChannel[ChannelIndex];
+      // check if a capture buffer was assigned, otherwise there is nothing to do
+      if (CaptureChannel <> nil) then
       begin
-        Move(MultiChannelBuffer[i*AudioFormat.FrameSize],
-             SingleChannelBuffer[i*SampleSize],
-             SampleSize);
-      end;
-      CaptureChannel.ProcessNewBuffer(SingleChannelBuffer, SingleChannelBufferSize);
-    end;
-  end;
+        // Use pointer arithmetic instead of open-array indexing to avoid range
+        // checks on bogus channel layouts reported by some devices.
+        MultiChannelBuffer := Buffer;
+        SourcePtr := PByte(MultiChannelBuffer);
+        Inc(SourcePtr, ChannelIndex * SampleSize);
 
-  FreeMem(SingleChannelBuffer);
+        DestPtr := PByte(SingleChannelBuffer);
+
+        // separate channel-data from interleaved multi-channel (e.g. stereo) data
+        for i := 0 to SamplesPerChannel-1 do
+        begin
+          Move(SourcePtr^, DestPtr^, SampleSize);
+          Inc(SourcePtr, AudioFormat.FrameSize);
+          Inc(DestPtr, SampleSize);
+        end;
+        CaptureChannel.ProcessNewBuffer(SingleChannelBuffer, SingleChannelBufferSize);
+      end;
+    end;
+  finally
+    FreeMem(SingleChannelBuffer);
+  end;
 end;
 
 { TAudioInputBase }
@@ -848,7 +882,46 @@ begin
   for i := 0 to High(AudioInputProcessor.DeviceList) do
     AudioInputProcessor.DeviceList[i].Free();
   AudioInputProcessor.DeviceList := nil;
+  SeenDeviceNames := nil;
   Result := true;
+end;
+
+procedure TAudioInputBase.PrepareDeviceScan(AScanMode: TAudioInputScanMode);
+begin
+  ScanMode := AScanMode;
+  SeenDeviceNames := nil;
+end;
+
+function TAudioInputBase.IsDeviceAssigned(const name: UTF8String): boolean;
+var
+  DeviceIniIndex: integer;
+  ChannelIndex: integer;
+  DeviceCfg: PInputDeviceConfig;
+begin
+  Result := false;
+
+  for DeviceIniIndex := 0 to High(Ini.InputDeviceConfig) do
+  begin
+    DeviceCfg := @Ini.InputDeviceConfig[DeviceIniIndex];
+    if (DeviceCfg.Name <> Trim(name)) then
+      continue;
+
+    for ChannelIndex := 0 to High(DeviceCfg.ChannelToPlayerMap) do
+    begin
+      if (DeviceCfg.ChannelToPlayerMap[ChannelIndex] <> CHANNEL_OFF) then
+      begin
+        Result := true;
+        Exit;
+      end;
+    end;
+
+    Exit;
+  end;
+end;
+
+function TAudioInputBase.ShouldProbeDevice(const name: UTF8String): boolean;
+begin
+  Result := (ScanMode = aimFull) or IsDeviceAssigned(name);
 end;
 
 {*
@@ -945,16 +1018,13 @@ var
     i: integer;
   begin
     Result := false;
-    // search devices with same description
-    for i := 0 to deviceIndex-1 do
+    // search already seen devices with same description
+    for i := 0 to High(SeenDeviceNames) do
     begin
-      if (AudioInputProcessor.DeviceList[i] <> nil) then
+      if (SeenDeviceNames[i] = name) then
       begin
-        if (AudioInputProcessor.DeviceList[i].Name = name) then
-        begin
-          Result := true;
-          Break;
-        end;
+        Result := true;
+        Break;
       end;
     end;
   end;
@@ -970,6 +1040,9 @@ begin
     // set description
     result := name + ' ('+IntToStr(count)+')';
   end;
+
+  SetLength(SeenDeviceNames, Length(SeenDeviceNames) + 1);
+  SeenDeviceNames[High(SeenDeviceNames)] := result;
 end;
 
 end.

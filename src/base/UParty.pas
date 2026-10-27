@@ -131,7 +131,7 @@ type
     Rounds: array of TParty_Round;    //< holds info which modes are played in this party game (if started)
     Teams: array of TParty_TeamInfo;  //< holds info of teams playing in current round (private for easy manipulation of lua functions)
 
-    Modes: array of TParty_ModeInfo;  //< holds info of registred party modes
+    Modes: array of TParty_ModeInfo;  //< holds info of registered party modes
 
     SungPartySongs: array of integer;
 
@@ -519,6 +519,7 @@ function TPartyGame.GetAvailableModes: AParty_ModeList;
     I: integer;
     Len: integer;
 begin
+  Result := nil;
   Len := 0;
   SetLength(Result, Len + 1);
   Result[Len].Index := Party_Round_Random;
@@ -803,7 +804,7 @@ begin
   // check for core plugin and empty function name
   if (Parent >= 0) and (Length(Func) > 0) then
   begin
-    // get plugin that registred the mode
+    // get plugin that registered the mode
     P := LuaCore.GetPluginById(Parent);
 
     if (P <> nil) then
@@ -962,6 +963,7 @@ function TPartyGame.GetTeamRanking: AParty_TeamRanking;
     Temp: TParty_TeamRanking;
     Rank: Integer;
 begin
+  Result := nil;
   SetLength(Result, Length(Teams));
 
   // fill ranking array

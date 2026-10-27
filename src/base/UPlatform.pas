@@ -28,7 +28,7 @@ unit UPlatform;
 // Comment by Eddie:
 // This unit defines an interface for platform specific utility functions.
 // The Interface is implemented in separate files for each platform:
-// UPlatformWindows, UPlatformLinux and UPlatformMacOSX.
+// UPlatformWindows, UPlatformLinux and UPlatformMacOS.
 
 interface
 
@@ -54,6 +54,9 @@ type
     function GetMusicPath:      IPath; virtual; abstract;
     function GetGameSharedPath: IPath; virtual; abstract;
     function GetGameUserPath:   IPath; virtual; abstract;
+    function GetBacktraceFunction: TBacktraceStrFunc; virtual;
+    function GetModifiableAssetPaths: IInterfaceList; virtual; abstract;
+    function GetWebsitePaths: IInterfaceList; virtual; abstract;
   end;
 
   function Platform(): TPlatform;
@@ -65,7 +68,7 @@ uses
   {$IF Defined(MSWINDOWS)}
   UPlatformWindows,
   {$ELSEIF Defined(DARWIN)}
-  UPlatformMacOSX,
+  UPlatformMacOS,
   {$ELSEIF Defined(UNIX)}
   UPlatformLinux,
   {$IFEND}
@@ -121,11 +124,16 @@ begin
   Result := false;
 end;
 
+function TPlatform.GetBacktraceFunction(): TBacktraceStrFunc;
+begin
+  Result := BackTraceStrFunc;
+end;
+
 initialization
 {$IF Defined(MSWINDOWS)}
   Platform_singleton := TPlatformWindows.Create;
 {$ELSEIF Defined(DARWIN)}
-  Platform_singleton := TPlatformMacOSX.Create;
+  Platform_singleton := TPlatformMacOS.Create;
 {$ELSEIF Defined(UNIX)}
   Platform_singleton := TPlatformLinux.Create;
 {$IFEND}

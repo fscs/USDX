@@ -21,9 +21,9 @@ AC_INIT([ultrastardx],
 # specify the website here
 PACKAGE_WEBSITE="http://usdx.eu/"
 AC_SUBST(PACKAGE_WEBSITE)
-# specify the IRC-channel here
-PACKAGE_IRC="#usdx at freenode.net"
-AC_SUBST(PACKAGE_IRC)
+# specify the Discord channel here
+PACKAGE_DISCORD="https://discord.gg/qfS2b7VwDG"
+AC_SUBST(PACKAGE_DISCORD)
 
 AC_CONFIG_MACRO_DIR([dists/autogen/m4])
 # Specify a source-file so autoconf can check if the source-dir exists
@@ -73,6 +73,17 @@ AC_DEFUN([AC_SUBST_DEFINE],
 # define switches
 # -----------------------------------------
 
+AC_CANONICAL_HOST
+
+case "$host_os" in
+  *mingw* | *cygwin* | *msys*)
+    is_windows=yes
+    ;;
+  *)
+    is_windows=no
+    ;;
+esac
+
 # print library options header
 AC_ARG_WITH([cfg-dummy1], [
 External Libraries:])
@@ -80,13 +91,24 @@ External Libraries:])
 # add portmixer option
 AC_ARG_WITH([portaudio],
     [AS_HELP_STRING([--with-portaudio],
-      [enable audio capture with PortAudio @<:@default=check@:>@])],
-    [with_portmixer=$withval], [with_portaudio="check"])
+      [enable audio capture with PortAudio (Mac/Linux only) @<:@default=check@:>@])],
+    [with_portaudio=$withval], [with_portaudio="check"])
 
 AC_ARG_WITH([portmixer],
     [AS_HELP_STRING([--with-portmixer],
-      [enable portmixer audio-mixer support @<:@default=check@:>@])],
+      [enable portmixer audio-mixer support (Mac/Linux only) @<:@default=check@:>@])],
     [with_portmixer=$withval], [with_portmixer="check"])
+
+if [[ x$is_windows == xyes ]]; then
+    if [[ x$with_portaudio != xcheck ]]; then
+        AC_MSG_ERROR([PortAudio option not available on Windows])
+    fi
+    with_portaudio=no
+    if [[ x$with_portmixer != xcheck ]]; then
+        AC_MSG_ERROR([PortMixer option not available on Windows])
+    fi
+    with_portmixer=no
+fi
 
 # add projectM option
 AC_ARG_WITH([libprojectM], 
@@ -94,16 +116,31 @@ AC_ARG_WITH([libprojectM],
       [enable projectM visualization support @<:@default=no@:>@])],
     [with_libprojectM=$withval], [with_libprojectM="no"])
 
-AC_ARG_WITH([local-projectM-presets],
-    [AS_HELP_STRING([--with-local-projectM-presets],
-		    [use the presets from game/visuals/ @<:@default=no@:>@])],
-    [with_local_projectM_presets=$withval], [with_local_projectM_presets="no"])
-
 # add OpenCV option
+AC_ARG_WITH([opencv],
+    [AS_HELP_STRING([--with-opencv],
+      [enable webcam support with OpenCV @<:@default=check@:>@])],
+    [with_OpenCV=$withval], [with_OpenCV="check"])
+
+# Backward-compatible spelling for the OpenCV package name used by PKG_HAVE.
+AC_ARG_WITH([OpenCV], [],
+    [with_OpenCV=$withval], [])
+
 AC_ARG_WITH([opencv-cxx-api],
     [AS_HELP_STRING([--with-opencv-cxx-api],
-      [use current OpenCV C++ API @<:@default=no@:>@])],
-    [with_opencv_cxx_api=$withval], [with_opencv_cxx_api="no"])
+      [(deprecated) alias for --with-opencv])],
+    [case "$withval" in
+        yes)  with_OpenCV=yes ;;
+        no)   with_OpenCV=no ;;
+        auto) with_OpenCV=check ;;
+        *)    AC_MSG_ERROR([bad value "$withval" for --with-opencv-cxx-api]) ;;
+     esac], [])
+
+case "$with_OpenCV" in
+    yes|no|check|nocheck) ;;
+    auto) with_OpenCV=check ;;
+    *) AC_MSG_ERROR([bad value "$with_OpenCV" for --with-opencv; use yes, no, check, auto, or nocheck]) ;;
+esac
 
 # print misc options header
 AC_ARG_WITH([cfg-dummy2], [
@@ -129,33 +166,9 @@ AC_ARG_ENABLE(debug,
   [test $enableval = "yes" && ENABLE_DEBUG="yes"], [])
 AC_SUBST(ENABLE_DEBUG)
 
-# OSX Packaging
-AC_ARG_ENABLE(osx-fink, [AS_HELP_STRING([--enable-osx-fink], [Enable fink packaging for OSX])])
-AC_ARG_ENABLE(osx-brew, [AS_HELP_STRING([--enable-osx-brew], [Enable homebrew packaging for OSX])])
-
-if [[ x$enable_osx_fink != x -a x$enable_osx_brew != x ]]; then
-    AC_MSG_ERROR([
-!!! You can't use --enable-osx-fink with --enable-osx-brew at the same time
-])
-fi
-
-# Default (homebrew)
-USE_OSX_PACKAGING="brew"
-USE_OSX_PACKAGING_LIBDIR="/usr/local/lib"
-
-if [[ x$enable_osx_fink != x ]]; then
-    USE_OSX_PACKAGING="fink"
-    USE_OSX_PACKAGING_LIBDIR="/sw/lib"
-fi
-
-AC_SUBST(USE_OSX_PACKAGING, $USE_OSX_PACKAGING)
-AC_SUBST(USE_OSX_PACKAGING_LIBDIR, $USE_OSX_PACKAGING_LIBDIR)
-
 # -----------------------------------------
 # check for compilers
 # -----------------------------------------
-
-AC_CANONICAL_HOST
 
 # find and test the freepascal compiler
 # sets PFLAGS, FPC_VERSION, FPC_DEBUG, etc.
@@ -190,15 +203,50 @@ fi
 # -----------------------------------------
 
 if test x$FPC_PLATFORM = xdarwin; then
-   AC_MACOSX_VERSION
+    AC_MACOS_VERSION
+    
+    if command -v brew >/dev/null 2>&1; then
+        MACOS_PACKAGING="brew"
+        MACOS_PACKAGING_LIBDIR="$(brew --prefix)/lib"
+    else
+        MACOS_PACKAGING="none"
+        MACOS_PACKAGING_LIBDIR="/usr/local/lib"
+        
+        AC_MSG_WARN([
+!!! Homebrew was not found. 
+!!! It is highly recommended to install Homebrew on macOS to manage dependencies.
+!!! Visit https://brew.sh for installation instructions.
+!!! Proceeding with system default paths, which might fail.
+        ])
+    fi
+    
+    AC_SUBST([MACOS_PACKAGING])
+    AC_SUBST([MACOS_PACKAGING_LIBDIR])
 fi
 
 # -----------------------------------------
 # check for libraries
 # -----------------------------------------
+CMAKE_PREFIX=
+if [[ x$is_windows == xyes ]]; then
+    PKG_CONFIG_PATH=$PKG_CONFIG_PATH:dists/windows/prefix/$(uname -m)/lib/pkgconfig
+    CMAKE_PREFIX=dists/windows/prefix/$(uname -m)
+fi
 
 # find sdl2
 PKG_HAVE([sdl2], [sdl2], yes)
+
+# Support sdl2-compat on Mac
+if [[ x$FPC_PLATFORM == xdarwin ]]; then
+    SDL2_PC_PATH=$(pkg-config --path sdl2)
+    if [[ -L "$SDL2_PC_PATH" -a $(basename $(readlink -f "$SDL2_PC_PATH")) == sdl2-compat.pc ]]; then
+        SDL3_LIBDIR=$(pkg-config --variable=libdir sdl3)
+        if [[ $? != 0 ]]; then
+            AC_MSG_ERROR([Detected sdl2-compat, but failed to locate SDL3])
+        fi
+        AC_SUBST(EXTRA_DYLIBS, $SDL3_LIBDIR/libSDL3.dylib)
+    fi
+fi
 
 # find SDL2_image
 PKG_HAVE([sdl2_image], [SDL2_image], yes)
@@ -209,13 +257,13 @@ PKG_HAVE([freetype], [freetype2], yes)
 # find sqlite3
 PKG_HAVE([sqlite3], [sqlite3], yes)
 
-# find lua 5.3, 5.2 or 5.11
+# find lua 5.5, 5.4, 5.3, 5.2 or 5.1
 # (K)Ubuntu uses lua5.2.pc and lua5.1.pc, 
-# Mac OS X and other linux distributions use lua.pc
+# macOS and other linux distributions use lua.pc
 # Archlinux aur package for 5.3 use lua5.3.pc in order
 # to make it work alongside the 5.2 version.
 
-for i in 5.4 5.3 5.2 5.1 ; do
+for i in 5.5 5.4 5.3 5.2 5.1 ; do
     PKG_HAVE([lua], [lua$i], check)
     if [[ x$lua_HAVE = xyes ]]; then
         lua_LIB_NAME="lua$i"
@@ -257,17 +305,11 @@ AC_SUBST(lua_LIB_NAME)
 #   although it is lower because pkg-config is confused by the 0d.
 # Use [mylib]_VERSION_INT for version-checking instead
 PKG_HAVE([libavcodec], [libavcodec], check)
-# The following finds libavcodec.pc in its new location on Mac OS X.
+# The following finds libavcodec.pc in its new location on macOS.
 # It only takes the last from the list, assuming that this is the latest 
 # version.
 if [[ x$libavcodec_HAVE = xno -a x$FPC_PLATFORM = xdarwin ]]; then
-    if [[ x$enable_osx_fink != x ]]; then
-        PKG_CONFIG_PATH=`find /sw/lib -name libavcodec.pc | tail -n 1 | xargs dirname`:$PKG_CONFIG_PATH
-    elif [[ x$enable_osx_brew != x ]]; then
-        PKG_CONFIG_PATH=`find /usr/local/opt/ffmpeg*/lib /usr/local/lib -name libavcodec.pc | tail -n 1 | xargs dirname`:$PKG_CONFIG_PATH
-    else
-        PKG_CONFIG_PATH=`find $FPCDIR/lib/ffmpeg* -name libavcodec.pc | tail -n 1 | xargs dirname`:$PKG_CONFIG_PATH
-    fi
+    PKG_CONFIG_PATH="$MACOS_PACKAGING_LIBDIR/pkgconfig:$PKG_CONFIG_PATH"
     export PKG_CONFIG_PATH
     PKG_HAVE([libavcodec], [libavcodec], yes)
 fi
@@ -291,7 +333,11 @@ AC_SUBST_DEFINE(HAVE_FFMPEG, $ffmpeg_HAVE)
 # map avutil library version to ffmpeg version
 AC_MSG_CHECKING([version of ffmpeg])
 # the order is ([avutil], [avcodec], [avformat], [swscale], [swresample])
-if   FFMPEG_LIBS_COMPATIBLE([59008100], [61003100], [61001100], [8001100], [5001100]); then
+if   FFMPEG_LIBS_COMPATIBLE([61001100], [63001100], [63001100], [10001100], [7001100]); then
+    FFMPEG_VERSION="9.0"
+elif   FFMPEG_LIBS_COMPATIBLE([60008100], [62011100], [62003100], [9001100], [6001100]); then
+    FFMPEG_VERSION="8.0"
+elif   FFMPEG_LIBS_COMPATIBLE([59008100], [61003100], [61001100], [8001100], [5001100]); then
     FFMPEG_VERSION="7.0"
 elif FFMPEG_LIBS_COMPATIBLE([58002100], [60003100], [60003100], [7001100], [4010100]); then
     FFMPEG_VERSION="6.0"
@@ -302,7 +348,7 @@ elif FFMPEG_LIBS_COMPATIBLE([56014100], [58018100], [58012100], [5001100], [3001
 else
     AC_MSG_ERROR([
 
-Unsupported ffmpeg version, most recent version supported is 7.0, oldest version supported is 4.0.
+Unsupported ffmpeg version, most recent version supported is 9.0, oldest version supported is 4.0.
 ])
 fi
 AX_EXTRACT_VERSION(FFMPEG, $FFMPEG_VERSION)
@@ -324,78 +370,81 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([],[])],
 AC_LANG_POP([C++])
 
 # find projectM version
-libprojectM_PKG="libprojectM >= 0.98"
+libprojectM_PKG="projectM-4 >= 4.0"
 PKG_HAVE([libprojectM], [$libprojectM_PKG], no)
-PKG_VERSION([libprojectM], [$libprojectM_PKG])
-if [[ "$libprojectM_VERSION_MAJOR" -ge 3 ]] ; then
-	AC_MSG_FAILURE([libprojectM >= 3 not yet supported])
-fi
-if [[ "$libprojectM_VERSION_MAJOR" -eq 1 ]] && [[ "${#libprojectM_VERSION_MAJOR}" -eq 2 ]] ; then
-	# The official releases with major = 1 were 1.00, 1.01, 1.10, and 1.2.0.
-	# So 1.10 is in fact 1.1.0 and also uses 1.1 in the ChangeLog file.
-	# This is probably also true for 0.x, where xmms-projectm went from 0.9.1
-	# to 0.91.2 within three days., but that's still a monotonic increase, so
-	# we don't care.
-	libprojectM_VERSION_RELEASE="${libprojectM_VERSION_MINOR#?}"
-	libprojectM_VERSION_MINOR="${libprojectM_VERSION_MINOR%?}"
-fi
 AC_SUBST_DEFINE(HAVE_PROJECTM, $libprojectM_HAVE)
-# get projectM include-dir
-PKG_VALUE([libprojectM], [INCLUDEDIR], [variable=includedir], [$libprojectM_PKG], 
-          [C-Header include-dir (e.g. /usr/include)])
-# get projectM data-dir (for preset- and font-dir)
-PKG_VALUE([libprojectM], [DATADIR], [variable=pkgdatadir], [$libprojectM_PKG], 
-          [projectM data-directory for presets etc. (e.g. /usr/share/projectM)])
-# check if we need the c-wrapper
-if [[ "$libprojectM_VERSION_MAJOR" -ge 1 ]]; then
-	if [[ "$cxx_works" = yes ]] ; then
-		libprojectM_USE_CWRAPPER=yes
-		use_cxx=yes
-	else
-		AC_MSG_FAILURE([Need C++ compiler to build libprojectM wrapper])
-	fi
-else
-	libprojectM_USE_CWRAPPER=no
-fi
-AC_SUBST(USE_PROJECTM_CWRAPPER, $libprojectM_USE_CWRAPPER)
-AC_SUBST_DEFINE(USE_LOCAL_PROJECTM_PRESETS, $with_local_projectM_presets)
+PKG_VERSION([libprojectM], [$libprojectM_PKG])
 
 opencv_core_standalone=no
 opencv_imgproc_standalone=no
 opencv_videoio_standalone=no
-if [[ "$with_opencv_cxx_api" = yes ]] ; then
-	if [[ "$cxx_works" = yes ]] ; then
-		AX_CXX_COMPILE_STDCXX([11], [], [optional])
-		CMAKE_FIND_PACKAGE([OpenCV], [CXX], [GNU], , [OpenCV_HAVE=yes], [OpenCV_HAVE=no])
-		if [[ "$OpenCV_HAVE" != yes ]] ; then
-			PKG_HAVE([OpenCV], [opencv4], no)
-			if [[ "$OpenCV_HAVE" != yes ]] ; then
-				PKG_HAVE([OpenCV], [opencv >= 3.0.0], yes)
-				OpenCV_CXXFLAGS=`$PKG_CONFIG --cflags "opencv >= 3.0.0"`
-			else
-				OpenCV_CXXFLAGS=`$PKG_CONFIG --cflags opencv4`
-			fi
-		fi
-		opencv_USE_CWRAPPER=yes
-		use_cxx=yes
-		for lib in $OpenCV_LIBS ; do
-			case "${lib##*/}" in
-			*opencv_core*)    opencv_core_standalone=yes ;;
-			*opencv_imgproc*) opencv_imgproc_standalone=yes ;;
-			*opencv_videoio*) opencv_videoio_standalone=yes ;;
-			*) continue ;;
-			esac
-			case "$lib" in
-			-L)  LIBS="$LIBS $lib" ;;
-			*/*) LIBS="$LIBS -L${lib%/*}" ;;
-			esac
-		done
-		AC_SUBST(OpenCV_CXXFLAGS)
-	else
-		AC_MSG_FAILURE([Need C++ compiler to build OpenCV wrapper])
-	fi
-else
-	opencv_USE_CWRAPPER=no
+OpenCV_WRAPPER_LIBS=
+OpenCV_PKG=
+opencv_USE_CWRAPPER=no
+if [[ x$with_OpenCV != xno ]] ; then
+    if [[ "$cxx_works" = yes ]] ; then
+        AX_CXX_COMPILE_STDCXX([11], [], [optional])
+        if [[ x$with_OpenCV = xnocheck ]] ; then
+            OpenCV_HAVE=yes
+        else
+            CMAKE_FIND_PACKAGE([OpenCV], [CXX], [GNU], , [OpenCV_HAVE=yes], [OpenCV_HAVE=no])
+            if [[ "$OpenCV_HAVE" != yes ]] ; then
+                saved_with_OpenCV=$with_OpenCV
+                with_OpenCV=check
+                PKG_HAVE([OpenCV], [opencv4], no)
+                if [[ "$OpenCV_HAVE" = yes ]] ; then
+                    OpenCV_PKG=opencv4
+                else
+                    PKG_HAVE([OpenCV], [opencv >= 3.0.0], no)
+                    if [[ "$OpenCV_HAVE" = yes ]] ; then
+                        OpenCV_PKG="opencv >= 3.0.0"
+                    fi
+                fi
+                with_OpenCV=$saved_with_OpenCV
+                if [[ x$OpenCV_PKG != x ]] ; then
+                    OpenCV_CXXFLAGS=`$PKG_CONFIG --cflags "$OpenCV_PKG"`
+                fi
+            fi
+        fi
+        if [[ "$OpenCV_HAVE" = yes ]] ; then
+            opencv_USE_CWRAPPER=yes
+            use_cxx=yes
+            for lib in $OpenCV_LIBS ; do
+                case "${lib##*/}" in
+                *opencv_core*|*opencv_imgproc*|*opencv_videoio*)
+                    OpenCV_WRAPPER_LIBS="$OpenCV_WRAPPER_LIBS $lib"
+                    ;;
+                *opencv_*)
+                    ;;
+                *)
+                    OpenCV_WRAPPER_LIBS="$OpenCV_WRAPPER_LIBS $lib"
+                    continue
+                    ;;
+                esac
+                case "${lib##*/}" in
+                *opencv_core*)    opencv_core_standalone=yes ;;
+                *opencv_imgproc*) opencv_imgproc_standalone=yes ;;
+                *opencv_videoio*) opencv_videoio_standalone=yes ;;
+                *) continue ;;
+                esac
+                case "$lib" in
+                -L)  LIBS="$LIBS $lib" ;;
+                */*) LIBS="$LIBS -L${lib%/*}" ;;
+                esac
+            done
+            AC_SUBST(OpenCV_CXXFLAGS)
+            AC_SUBST(OpenCV_LIBS)
+            AC_SUBST(OpenCV_WRAPPER_LIBS)
+        elif [[ x$with_OpenCV = xyes ]] ; then
+            AC_MSG_FAILURE([OpenCV was requested but not found])
+        else
+            AC_MSG_NOTICE([OpenCV not found; webcam support disabled])
+        fi
+    elif [[ x$with_OpenCV = xyes -o x$with_OpenCV = xnocheck ]] ; then
+        AC_MSG_FAILURE([Need C++ compiler to build the OpenCV wrapper])
+    else
+        AC_MSG_NOTICE([C++ compiler is not available; webcam support disabled])
+    fi
 fi
 AC_SUBST_DEFINE(USE_OPENCV_CWRAPPER, $opencv_USE_CWRAPPER)
 AC_SUBST(USE_OPENCV_CWRAPPER, $opencv_USE_CWRAPPER)
@@ -421,8 +470,34 @@ AC_SUBST_DEFINE(HAVE_PORTAUDIO, $portaudio_HAVE)
 PKG_HAVE([portmixer], [portmixer], no)
 AC_SUBST_DEFINE(HAVE_PORTMIXER, $portmixer_HAVE)
 
-AC_ARG_ENABLE(portmidi, [AS_HELP_STRING([--disable-portmidi], [Disable PortTime Midi loop])])
-AC_ARG_WITH(porttime, [AS_HELP_STRING([--with-porttime], [Use PortTime instead of SDL Midi loop])])
+AC_ARG_ENABLE(portmidi, [AS_HELP_STRING([--disable-portmidi], [Disable PortTime Midi loop (Mac/Linux only)])])
+AC_ARG_WITH(porttime, [AS_HELP_STRING([--with-porttime], [Use PortTime instead of SDL Midi loop (Mac/Linux only)])])
+if [[ x$is_windows == xyes ]]; then
+    if [[ -n "$enable_portmidi" ]]; then
+        AC_MSG_ERROR([PortMidi option not available on Windows])
+    fi
+    enable_portmidi=no
+    with_portmidi=no
+    if [[ -n "$with_porttime" ]]; then
+        AC_MSG_ERROR([PortTime option not available on Windows])
+    fi
+    with_porttime=no
+fi
+
+# Default to MIDI emulation on Linux and macOS unless --disable-midiemu is given
+case "$host_os" in
+    linux*|darwin*)
+        default_midiemu=yes ;;
+    *)
+        default_midiemu=no ;;
+esac
+AC_ARG_ENABLE(midiemu, [AS_HELP_STRING([--enable-midiemu],[Enable built-in MIDI emulation backend (default on Linux/macOS)])],
+    [enable_midiemu=$enableval],
+    [enable_midiemu=$default_midiemu])
+
+AC_ARG_ENABLE(disable-midiemu, [AS_HELP_STRING([--disable-midiemu],[Disable built-in MIDI emulation backend and use system MIDI backend if available])],
+    [if test x$enableval = xyes; then enable_midiemu=no; fi])
+
 
 if [[ x$enable_portmidi != xno ]] ; then
     AC_CHECK_LIB([portmidi], [Pm_Initialize], [
@@ -449,9 +524,22 @@ AC_SUBST_DEFINE(HAVE_PORTMIDI, $portmidi_HAVE)
 AC_SUBST_DEFINE(HAVE_PORTTIME, $porttime_HAVE)
 AC_SUBST(porttime_LIB_NAME)
 
+## MIDI emulation backend
+if [[ x$enable_midiemu = xyes ]] ; then
+    midiemu_HAVE=yes
+    PFLAGS_EXTRA="$PFLAGS_EXTRA -dUseMidiEmu"
+    # Avoid platform MIDI backends with system synths if built-in MIDI emulation is enabled
+    portmidi_HAVE=no
+    porttime_HAVE=no
+else
+    midiemu_HAVE=no
+fi
+AC_SUBST_DEFINE(HAVE_MIDI_EMU, $midiemu_HAVE)
+AC_SUBST(PFLAGS_EXTRA)
+
 # determine linker-flags
 if test x$FPC_PLATFORM = xdarwin; then
-  LDFLAGS="-macosx_version_min 10.4 -undefined dynamic_lookup -headerpad_max_install_names -L/usr/X11/lib"
+    LDFLAGS="-macos_version_min 10.8 -headerpad_max_install_names"
 fi
 #LIBS=
 AC_SUBST(LDFLAGS)
@@ -463,7 +551,13 @@ AC_SUBST(LIBS)
 
 AC_CONFIG_FILES([Makefile])
 AC_CONFIG_FILES([src/Makefile])
-AC_CONFIG_FILES([src/config-$FPC_PLATFORM.inc:src/config.inc.in])
+if [[ x$is_windows == xyes ]]; then
+    CONFIG_INC_NAME=config-win.inc
+else
+    CONFIG_INC_NAME=config-$FPC_PLATFORM.inc
+fi
+AC_CONFIG_FILES([src/$CONFIG_INC_NAME:src/config.inc.in])
+
 if [[ x$libprojectM_USE_CWRAPPER = xyes ]]; then
     AC_CONFIG_FILES([src/lib/projectM/cwrapper/Makefile])
 fi
@@ -487,20 +581,19 @@ AC_MSG_NOTICE([
 !!! For further information on $PACKAGE_NAME visit:
 !!!   $PACKAGE_WEBSITE
 !!!
-!!! In case you find a bug send a bugreport to:
+!!! In case you find a bug, please send a bug report to:
 !!!   $PACKAGE_BUGREPORT
-!!! You might as well ask for help at the IRC-Channel
-!!!   $PACKAGE_IRC
+!!! You might as well ask for help on Discord
+!!!   $PACKAGE_DISCORD
 !!!
 ])
 
 if test x$FPC_PLATFORM = xdarwin; then
     AC_MSG_NOTICE([
-!!! Special target for OSX are:
-!!! "make macosx-standalone-app" to create a standalone .app
-!!! "make macosx-dmg" to create a dmg archive with standalone .app
-!!! Selected packaging: $USE_OSX_PACKAGING with libdir $USE_OSX_PACKAGING_LIBDIR
+!!! Special target for macOS are:
+!!! "make macos-standalone-app" to create a standalone .app
+!!! "make macos-dmg" to create a dmg archive with standalone .app
+!!! Packaging with $MACOS_PACKAGING and libdir $MACOS_PACKAGING_LIBDIR.
                    ])
 fi
-
 

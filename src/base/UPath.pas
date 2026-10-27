@@ -191,7 +191,7 @@ type
    * It is rare but it happens.
    *
    * IMPORTANT:
-   *   This interface needs the cwstring unit on Unix (Max OS X / Linux) systems.
+   *   This interface needs the cwstring unit on Unix (macOS / Linux) systems.
    *   Cwstring functions (WideUpperCase, ...) cannot be used by external threads
    *   as FPC uses Thread-Local-Storage for the implementation. As a result do not
    *   call IPath stuff by external threads (e.g. in C callbacks or by SDL-threads).
@@ -360,6 +360,8 @@ type
     function GetIntern: UTF8String;
     property Intern: UTF8String READ GetIntern;
   end;
+  TPathDynArray = array of IPath;
+
 
 {**
  * Creates a new path with the given pathname. PathName can be either in UTF8
@@ -761,6 +763,7 @@ var
   DelimPos: integer;
   I: integer;
 begin
+  Result := nil;
   SetLength(Result, 0);
 
   if (Length(Self.ToUTF8(true)) = 0) then

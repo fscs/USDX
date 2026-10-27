@@ -70,13 +70,6 @@ USDX_BIN_NAME ?= ultrastardx$(EXEEXT)
 USDX_BIN := $(USDX_GAME_DIR)/$(USDX_BIN_NAME)
 
 #################################################
-# ProjectM
-#################################################
-
-PROJECTM_CWRAPPER_DIR := $(USDX_LIB_DIR)/projectM/cwrapper
-USE_PROJECTM_CWRAPPER = @USE_PROJECTM_CWRAPPER@
-
-#################################################
 # OpenCV
 #################################################
 
@@ -86,11 +79,6 @@ USE_OPENCV_CWRAPPER = @USE_OPENCV_CWRAPPER@
 #################################################
 # Dependencies
 #################################################
-
-DEPS :=
-ifeq ($(USE_PROJECTM_CWRAPPER), yes)
-DEPS += $(PROJECTM_CWRAPPER_DIR)
-endif
 
 ifeq ($(USE_OPENCV_CWRAPPER), yes)
 DEPS += $(OPENCV_CWRAPPER_DIR)
@@ -124,6 +112,7 @@ BUILD_TARGETS = all debug release rebuild build
 .PHONY: $(BUILD_TARGETS)
 $(BUILD_TARGETS): all-deps
 	$(MAKE) -C $(USDX_SRC_DIR) $@
+	@$(MAKE) --no-print-directory whitespace-warn
 
 .PHONY: all-deps
 all-deps:
@@ -162,7 +151,7 @@ distclean: clean clean-game
 	$(RM) config.log config.status aclocal.m4 
 	$(RM_REC) autom4te.cache
 	$(RM) $(USDX_SRC_DIR)/config.inc 
-	$(RM) $(srcdir)/Makefile $(USDX_SRC_DIR)/Makefile $(PROJECTM_CWRAPPER_DIR)/Makefile
+	$(RM) $(srcdir)/Makefile $(USDX_SRC_DIR)/Makefile
 
 .PHONY: maintainer-clean
 maintainer-clean: distclean
@@ -178,12 +167,35 @@ tidy:
 # Backup files
 	find $(srcdir) -name "*~" -o -name "*.bak" -o -name "*.orig" | xargs $(RM)
 
+# check for trailing whitespace in the same paths as CI
+.PHONY: whitespace-check
+whitespace-check:
+	@base_ref="$${BASE_REF:-origin/master}"; \
+	if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then \
+	  echo "error: whitespace-check must run inside a git checkout"; \
+	  exit 1; \
+	fi; \
+	if ! git rev-parse --verify "$$base_ref" >/dev/null 2>&1; then \
+	  echo "error: git ref '$$base_ref' not found (set BASE_REF=... if needed)"; \
+	  exit 1; \
+	fi; \
+	base_sha=`git merge-base HEAD "$$base_ref"`; \
+	git --no-pager -c core.whitespace=blank-at-eol diff --no-ext-diff --color --check "$$base_sha" -- './src' ':!./src/lib' ':!./src/webSDK'
+
+# warning-only variant for local builds
+.PHONY: whitespace-warn
+whitespace-warn:
+	@$(MAKE) --no-print-directory whitespace-check || { \
+	  echo "warning: whitespace issues detected (run 'make whitespace-check' for details)"; \
+	  true; \
+	}
+
 
 #################################################
 # auto-update
 #################################################
 
-Makefile: $(srcdir)/Makefile.in $(USDX_SRC_DIR)/Makefile.in $(USDX_SRC_DIR)/config.inc.in $(PROJECTM_CWRAPPER_DIR)/Makefile.in config.status
+Makefile: $(srcdir)/Makefile.in $(USDX_SRC_DIR)/Makefile.in $(USDX_SRC_DIR)/config.inc.in config.status
 	@echo "-----------------------------------"
 	@echo "Performing reconfiguration..."
 	./config.status
@@ -256,23 +268,17 @@ install-data:
 	$(MAKE) RECURSIVE_SRC_DIR="$(USDX_GAME_DIR)/resources" \
             RECURSIVE_DST_DIR="$(DESTDIR)$(INSTALL_DATADIR)/resources" \
             install-data-recursive
-	$(MAKE) RECURSIVE_SRC_DIR="$(USDX_GAME_DIR)/soundfonts" \
-            RECURSIVE_DST_DIR="$(DESTDIR)$(INSTALL_DATADIR)/sounds" \
-            install-data-recursive
 	$(MAKE) RECURSIVE_SRC_DIR="$(USDX_GAME_DIR)/sounds" \
             RECURSIVE_DST_DIR="$(DESTDIR)$(INSTALL_DATADIR)/sounds" \
             install-data-recursive
 	$(MAKE) RECURSIVE_SRC_DIR="$(USDX_GAME_DIR)/themes" \
             RECURSIVE_DST_DIR="$(DESTDIR)$(INSTALL_DATADIR)/themes" \
             install-data-recursive
-	if [ "@DEFINE_USE_LOCAL_PROJECTM_PRESETS@" = DEFINE ] ; then \
+	if [ "@DEFINE_HAVE_PROJECTM@" = DEFINE ] ; then \
 	    $(MAKE) RECURSIVE_SRC_DIR="$(USDX_GAME_DIR)/visuals" \
 	        RECURSIVE_DST_DIR="$(DESTDIR)$(INSTALL_DATADIR)/visuals" \
 	        install-data-recursive ; \
 	fi
-	$(MAKE) RECURSIVE_SRC_DIR="$(USDX_GAME_DIR)/webs" \
-            RECURSIVE_DST_DIR="$(DESTDIR)$(INSTALL_DATADIR)/themes" \
-            install-data-recursive
 	$(INSTALL_DATA) "LICENSE" "$(DESTDIR)$(INSTALL_DATADIR)/LICENSE"
 
 .PHONY: install-data-recursive
@@ -282,7 +288,6 @@ install-data-recursive:
 	@for file in "$(RECURSIVE_SRC_DIR)"/*; do \
 	  if test -f "$$file"; then \
 	    filename=`basename "$$file"`; \
-	    echo "$(INSTALL_DATA) \"$$file\" \"$(RECURSIVE_DST_DIR)/$$filename\""; \
 	    $(INSTALL_DATA) "$$file" "$(RECURSIVE_DST_DIR)/$$filename" || exit 1; \
 	  fi; \
 	  if test -d "$$file"; then \
@@ -311,7 +316,6 @@ uninstall-data:
 	$(RM_REC) "$(DESTDIR)$(INSTALL_DATADIR)/sounds"
 	$(RM_REC) "$(DESTDIR)$(INSTALL_DATADIR)/themes"
 	$(RM_REC) "$(DESTDIR)$(INSTALL_DATADIR)/visuals"
-	$(RM_REC) "$(DESTDIR)$(INSTALL_DATADIR)/webs"
 	$(RM)     "$(DESTDIR)$(INSTALL_DATADIR)/LICENSE"
 	-rmdir "$(DESTDIR)$(INSTALL_DATADIR)"
 
@@ -382,120 +386,120 @@ rpm: all
 
 
 #################################################
-# Mac OS X defines
+# macOS defines
 #################################################
 
-# otool: Mac OS X object file displaying tool
+# otool: macOS object file displaying tool
 OTOOL := /usr/bin/otool 
-# install_name_tool: Mac OS X tool to change dynamic shared library install names
+# install_name_tool: macOS tool to change dynamic shared library install names
 INSTALL_NAME_TOOL := /usr/bin/install_name_tool
-# hdiutil: Mac OS X disk image tool
+# hdiutil: macOS disk image tool
 HDIUTIL := /usr/bin/hdiutil
 # pkgingLibDir := path for libraries installed using packaging system
-pkgingLibDir := @USE_OSX_PACKAGING_LIBDIR@
+pkgingLibDir := @MACOS_PACKAGING_LIBDIR@
+EXTRA_DYLIBS := @EXTRA_DYLIBS@
 
 #################################################
-# Mac OS X app-bundle
+# macOS app-bundle
 #################################################
 
-macosx_bundle_path := UltraStarDeluxe.app/Contents
-.PHONY: macosx-app
-macosx-app: all 
-# Create double clickable Mac OS X application.
+macos_bundle_path := UltraStar\ Deluxe.app/Contents
+.PHONY: macos-app
+macos-app: all 
+# Create double clickable macOS application.
 
 	@echo ""
-	@echo "Creating the Mac OS X application"
+	@echo "Creating the macOS application"
 	@echo ""
 
-	$(MKDIR) $(macosx_bundle_path)
+	$(MKDIR) $(macos_bundle_path)
 
 # Put the icon file into its particular place. 
 # Must be done BEFORE info.plist is created.
-	$(MKDIR) $(macosx_bundle_path)/resources
-	$(INSTALL_DATA) icons/ultrastardx.icns $(macosx_bundle_path)/resources/
+	$(MKDIR) $(macos_bundle_path)/resources
+	$(INSTALL_DATA) icons/ultrastardx.icns $(macos_bundle_path)/resources/
 
 # the info.plist file
-	$(INSTALL_DATA) $(USDX_SRC_DIR)/macosx/Info.plist $(macosx_bundle_path)/
+	$(INSTALL_DATA) $(USDX_SRC_DIR)/macos/Info.plist $(macos_bundle_path)/
 
 # Copy the resources. 
-	$(MAKE) install-all INSTALL_DATADIR=$(macosx_bundle_path) bindir=$(macosx_bundle_path)/MacOS
+	$(MAKE) install-all INSTALL_DATADIR=$(macos_bundle_path) bindir=$(macos_bundle_path)/MacOS
 
 # Copy the lua plugins. 
-	$(MAKE) install-plugins INSTALL_DATADIR=$(macosx_bundle_path) bindir=$(macosx_bundle_path)/MacOS
+	$(MAKE) install-plugins INSTALL_DATADIR=$(macos_bundle_path) bindir=$(macos_bundle_path)/MacOS
 
 # Create the song directory. 
-	$(MKDIR) $(macosx_bundle_path)/songs
+	$(MKDIR) $(macos_bundle_path)/songs
 
 # final messages
 	@echo ""
-	@echo "Mac OS X application created (UltraStarDeluxe.app)."
-	@echo "Using @USE_OSX_PACKAGING@ with libdir @USE_OSX_PACKAGING_LIBDIR@"
-	@echo "Please report issues to the developer team, preferably mischi."
+	@echo "macOS application created (UltraStar Deluxe.app)."
+	@echo "Using @MACOS_PACKAGING@ with libdir @MACOS_PACKAGING_LIBDIR@"
+	@echo "Please report issues to the developer team, preferably on Discord (https://discord.gg/qfS2b7VwDG)."
 	@echo "Have fun."
 	@echo ""
 
-# export some variables used by Makefile.osx-helper
+# export some variables used by Makefile.macos-helper
 export USDX_BIN
 export pkgingLibDir
-export macosx_bundle_path
+export macos_bundle_path
 export INSTALL
 export INSTALL_NAME_TOOL
 export OTOOL
+export EXTRA_DYLIBS
 
-.PHONY: macosx-standalone-app
-macosx-standalone-app: macosx-app 
-# Create double clickable standalone Mac OS X application.
-# Not fully test, but should work on 10.5.
+.PHONY: macos-standalone-app
+macos-standalone-app: macos-app 
+# Create double clickable standalone macOS application.
 
 	@echo ""
-	@echo "Creating the standalone Mac OS X application"
+	@echo "Creating the standalone macOS application"
 	@echo ""
 
-	@rm -f $(macosx_bundle_path)/MacOS/$(USDX_BIN_NAME)
-	@$(MAKE) -f Makefile.osx-helper
+	@rm -f $(macos_bundle_path)/MacOS/$(USDX_BIN_NAME)
+	@$(MAKE) -f Makefile.macos-helper
+	codesign --force --deep --sign - "./UltraStar Deluxe.app"
 
-# do  not forget to sign the code
-#	codesign -f -s USDX-codesign UltraStarDeluxe.app
 
 # final messages
 	@echo ""
-	@echo "Standalone Mac OS X application created."
+	@echo "Standalone macOS application created."
 	@echo ""
 
-.PHONY: macosx-dmg
-macosx-dmg: macosx-standalone-app
-	@if test -d "/Volumes/UltraStarDeluxe"; then\
-		echo "Error: there is already a disk mounted on /Volumes/UltraStarDeluxe";\
+.PHONY: macos-dmg
+macos-dmg: macos-standalone-app
+	@if test -d "/Volumes/UltraStar Deluxe"; then\
+		echo "Error: there is already a disk mounted on /Volumes/UltraStar Deluxe";\
 		exit 1;\
 	fi
-	$(RM) UltraStarDeluxe.dmg
-	$(RM) UltraStarDeluxe.sparseimage
-	$(HDIUTIL) create -type SPARSE -size 300m -fs HFS+ -volname UltraStarDeluxe -ov UltraStarDeluxe.sparseimage
-	$(HDIUTIL) attach UltraStarDeluxe.sparseimage
-	/bin/ln -s /Applications /Volumes/UltraStarDeluxe/Applications
-	/bin/cp -R UltraStarDeluxe.app /Volumes/UltraStarDeluxe
-	$(MKDIR) /Volumes/UltraStarDeluxe/Licenses
-	find $(USDX_GAME_DIR) -name 'LICENSE.*' -maxdepth 1 -exec cp {} /Volumes/UltraStarDeluxe/Licenses \;
-#	/bin/cp ultrastardx/icons/UltraStarDeluxeVolumeIcon.icns /Volumes/UltraStarDeluxe/.VolumeIcon.icns
-#	/Developer/Tools/SetFile -a C /Volumes/UltraStarDeluxe/.VolumeIcon.icns /Volumes/UltraStarDeluxe
-	codesign --force --deep --sign - /Volumes/UltraStarDeluxe/UltraStarDeluxe.app
-	$(HDIUTIL) detach /Volumes/UltraStarDeluxe
-	$(HDIUTIL) convert UltraStarDeluxe.sparseimage -format UDBZ -o UltraStarDeluxe.dmg
-	$(RM) UltraStarDeluxe.sparseimage
+	$(RM) "UltraStar Deluxe.dmg"
+	$(RM) "UltraStar Deluxe.sparseimage"
+	$(HDIUTIL) create -type SPARSE -size 1g -fs HFS+ -volname "UltraStar Deluxe" -ov "UltraStar Deluxe.sparseimage"
+	$(HDIUTIL) attach "UltraStar Deluxe.sparseimage"
+	/bin/ln -s /Applications "/Volumes/UltraStar Deluxe/Applications"
+	/bin/cp -R "UltraStar Deluxe.app" "/Volumes/UltraStar Deluxe"
+	$(MKDIR) "/Volumes/UltraStar Deluxe/Licenses"
+	find $(USDX_GAME_DIR) -name 'LICENSE.*' -maxdepth 1 -exec cp {} "/Volumes/UltraStar Deluxe/Licenses" \;
+#	/bin/cp "ultrastardx/icons/UltraStarDeluxeVolumeIcon.icns "/Volumes/UltraStar Deluxe/.VolumeIcon.icns"
+#	/Developer/Tools/SetFile -a C "/Volumes/UltraStar Deluxe/.VolumeIcon.icns" "/Volumes/UltraStar Deluxe"
+	codesign --force --deep --sign - "/Volumes/UltraStar Deluxe/UltraStar Deluxe.app"
+	$(HDIUTIL) detach "/Volumes/UltraStar Deluxe"
+	$(HDIUTIL) convert "UltraStar Deluxe.sparseimage" -format UDBZ -o "UltraStar Deluxe.dmg"
+	$(RM) "UltraStar Deluxe.sparseimage"
 
 	@echo ""
-	@echo "DMG Disk image created (UltraStarDeluxe.dmg)."
+	@echo "DMG Disk image created (UltraStar Deluxe.dmg)."
 	@echo ""
 
-# remove Mac OS X apllication bundle and disk image
-.PHONY: clean-macosx
-clean-macosx: clean-macosx-app clean-macosx-dmg
+# remove macOS apllication bundle and disk image
+.PHONY: clean-macos
+clean-macos: clean-macos-app clean-macos-dmg
 
-.PHONY: clean-macosx-app
-clean-macosx-app:
-	$(RM_REC) UltraStarDeluxe.app 
+.PHONY: clean-macos-app
+clean-macos-app:
+	$(RM_REC) "UltraStar Deluxe.app"
 
-.PHONY: clean-macosx-dmg
-clean-macosx-dmg:
-	$(RM) UltraStarDeluxe.dmg 
-	$(RM) UltraStarDeluxe.sparseimage
+.PHONY: clean-macos-dmg
+clean-macos-dmg:
+	$(RM) "UltraStar Deluxe.dmg"
+	$(RM) "UltraStar Deluxe.sparseimage"

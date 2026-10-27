@@ -100,15 +100,16 @@ task_cmake() {
 }
 
 task_projectm() {
-	start_build projectm projectM || return 0
-	patch -p1 < $root/projectM-2.2.1.patch
-	chmod a+x autogen.sh
-	./autogen.sh
-	./configure --prefix="$PREFIX" PKG_CONFIG_PATH="$PKG_CONFIG_PATH" CC="$CC" CXX="$CXX" \
-		--disable-static
+	start_build projectm projectm || return 0
+
+	# This patch backports GCC 4.9 compatibility so that ProjectM can compile on Debian Jessie
+	# When the AppImage OS is upgraded to a later release, the patch can be deleted
+	patch -p1 < $root/projectM-gcc-4.9.patch
+
+	cmake -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_BUILD_TYPE=Release -DENABLE_PLAYLIST=OFF
 	make $makearg
 	make install
-	hide make distclean
+	ln -s /usr/lib/x86_64-linux-gnu/pkgconfig/gl.pc $PREFIX/lib/pkgconfig/opengl.pc
 }
 
 task_desktop_file_utils() {
@@ -121,6 +122,7 @@ task_desktop_file_utils() {
 
 task_AppImageKit() {
 	start_build AppImageKit || return 0
+	patch -p1 < $root/appimagekit-deps.patch
 	! pkg-config --exists libarchive || EXTRA_CMAKE_FLAGS="-DUSE_SYSTEM_LIBARCHIVE=ON"
 	rm -rf build
 	mkdir -p build
@@ -143,6 +145,16 @@ task_libpng() {
 	start_build libpng || return 0
 	./configure --prefix="$PREFIX" PKG_CONFIG_PATH="$PKG_CONFIG_PATH" CC="$CC" CXX="$CXX" \
 		--disable-static
+	make $makearg
+	make install
+	hide make distclean
+}
+
+task_libwebp() {
+	start_build libwebp || return 0
+	./configure --prefix="$PREFIX" PKG_CONFIG_PATH="$PKG_CONFIG_PATH" CC="$CC" CXX="$CXX" \
+		--disable-static --disable-libwebpmux --disable-gl --disable-sdl \
+		--disable-png --disable-jpeg --disable-tiff --disable-gif --disable-wic
 	make $makearg
 	make install
 	hide make distclean
@@ -175,10 +187,10 @@ task_pulseaudio() {
 #define PA_API_VERSION $PA_API_VERSION
 #endif
 EOF
-	true | $CC -shared -o $PREFIX/lib/libpulse-simple.so.0 -Wl,-soname,libpulse-simple.so.0 -x c -
-	ln -s libpulse-simple.so.0 $PREFIX/lib/libpulse-simple.so
+	true | $CC -shared -o $PREFIX/lib/libpulse.so.0 -Wl,-soname,libpulse.so.0 -x c -
+	ln -s libpulse.so.0 $PREFIX/lib/libpulse.so
 	PA_VERSION=$(cat .tarball-version)
-	sed -e "s:@prefix@:$PREFIX:;s:@exec_prefix@:$PREFIX:;s:@libdir@:$PREFIX/lib:;s:@includedir@:$PREFIX/include:;s:@PACKAGE_VERSION@:$PA_VERSION:;s:@PTHREAD_LIBS@:-pthread:;/^Libs.private/d;/^Requires:/d" < libpulse-simple.pc.in > $PREFIX/lib/pkgconfig/libpulse-simple.pc
+	sed -e "s:@prefix@:$PREFIX:;s:@exec_prefix@:$PREFIX:;s:@libdir@:$PREFIX/lib:;s:@includedir@:$PREFIX/include:;s:@PACKAGE_VERSION@:$PA_VERSION:;s:@PTHREAD_LIBS@:-pthread:;/^Libs.private/d;/^Requires:/d" < libpulse.pc.in > $PREFIX/lib/pkgconfig/libpulse.pc
 }
 
 task_pipewire() {
@@ -207,6 +219,22 @@ Description: stuff
 Version: 1.9.17
 Libs: -L$PREFIX/lib -ljack
 Cflags: -I$PREFIX/include -D_REENTRANT
+EOF
+}
+
+task_xkbcommon() {
+	start_build xkbcommon || return 0
+	mkdir -p $PREFIX/include/xkbcommon $PREFIX/lib/pkgconfig
+	cp include/xkbcommon/*.h $PREFIX/include/xkbcommon
+	true | $CC -shared -o $PREFIX/lib/libxkbcommon.so.0 -Wl,-soname,libxkbcommon.so.0 -x c -
+	ln -s libxkbcommon.so.0 $PREFIX/lib/libxkbcommon.so
+	XKBC_VERSION=$(sed -n "s/.*version[[:space:]]*:[[:space:]]*'\\([^']*\\)'.*/\1/p" meson.build | head -n1)
+	cat > $PREFIX/lib/pkgconfig/xkbcommon.pc <<EOF
+Name: xkbcommon
+Description: stuff
+Version: $XKBC_VERSION
+Libs: -L$PREFIX/lib -lxkbcommon
+Cflags: -I$PREFIX/include
 EOF
 }
 
@@ -261,7 +289,7 @@ task_sdl2_image() {
 	start_build SDL2_image || return 0
 	bash ./autogen.sh
 	./configure --prefix="$PREFIX" PKG_CONFIG_PATH="$PKG_CONFIG_PATH" CC="$CC" CXX="$CXX" \
-		--disable-static --disable-jpg-shared --disable-png-shared --disable-webp-shared --disable-webp --disable-tif-shared --disable-tif --disable-stb-image
+		--disable-static --disable-jpg-shared --disable-png-shared --disable-webp-shared --disable-tif-shared --disable-tif --disable-stb-image
 	make $makearg
 	make install
 	hide make distclean
@@ -404,7 +432,6 @@ task_ffmpeg() {
 		--disable-debug \
 		--disable-indevs \
 		--disable-outdevs \
-		--disable-postproc \
 		--disable-muxers \
 		--disable-bsfs \
 		--disable-filters \
@@ -459,6 +486,10 @@ EOF
 
 task_opencv() {
 	start_build opencv OpenCV || return 0
+	EXTRA_CMAKE_FLAGS=
+	if [ -d "$SRC/ipp-icv-$ARCH" ] ; then
+		EXTRA_CMAKE_FLAGS="$EXTRA_CMAKE_FLAGS -DIPPROOT=$SRC/ipp-icv-$ARCH/icv"
+	fi
 	rm -rf build
 	mkdir -p build
 	cd build
@@ -505,6 +536,7 @@ task_opencv() {
 		-DWITH_IMGCODEC_SUNRASTER=OFF \
 		-DWITH_IMGCODEC_PXM=OFF \
 		-DWITH_IMGCODEC_PFM=OFF \
+		$EXTRA_CMAKE_FLAGS \
 		..
 	make $makearg
 	make install
@@ -516,14 +548,11 @@ task_usdx() {
 	start_build ../../.. UltraStar Deluxe
 	local OUTPUT="$root/build/$ARCH"
 	bash ./autogen.sh
-	./configure --prefix=/usr PKG_CONFIG_PATH="$PKG_CONFIG_PATH" CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" CC="$CC" CXX="$CXX" --enable-debug --with-opencv-cxx-api --without-portaudio --with-libprojectM --with-local-projectM-presets
+	./configure --prefix=/usr PKG_CONFIG_PATH="$PKG_CONFIG_PATH" CMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH" CC="$CC" CXX="$CXX" --enable-debug --without-portaudio --with-libprojectM
 	sleep 1
 	make LDFLAGS="-O2 --sort-common --as-needed -z relro" INSTALL_DATADIR="../share/ultrastardx"
 	rm -rf "$OUTPUT"
 	make DESTDIR="$OUTPUT/" install
-	rm -r "$OUTPUT/usr/share/ultrastardx/visuals/projectM/presets"
-	local projectM_datadir=`PKG_CONFIG_PATH="$PKG_CONFIG_PATH" pkg-config --variable=pkgdatadir libprojectM`
-	cp -av "$projectM_datadir/presets" "$OUTPUT/usr/share/ultrastardx/visuals/projectM"
 	for i in 32 256 512 ; do
 		mkdir -p "$OUTPUT/usr/share/icons/hicolor/${i}x${i}/apps"
 		cp "$root/../../icons/ultrastardx-icon_${i}.png" "$OUTPUT/usr/share/icons/hicolor/${i}x${i}/apps/ultrastardx.png"
@@ -569,13 +598,13 @@ if [ "$1" == "all_deps" ]; then
 	clean_prefix
 	echo
 
-	task_openssl
-	echo
-	task_python
 	echo
 	task_cmake
 	echo
 	task_ninja
+	task_openssl
+	echo
+	task_python
 	echo
 	task_meson
 	echo
@@ -590,6 +619,8 @@ if [ "$1" == "all_deps" ]; then
 	echo
 	task_libpng
 	echo
+	task_libwebp
+	echo
 
 	task_wayland
 	echo
@@ -598,6 +629,8 @@ if [ "$1" == "all_deps" ]; then
 	task_pulseaudio
 	echo
 	task_pipewire
+	echo
+	task_xkbcommon
 	echo
 	task_sdl2
 	echo

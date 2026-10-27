@@ -1,27 +1,15 @@
 # Compiling
-[Free Pascal](http://freepascal.org/) 3.0.0 or newer is required to compile UltraStar Deluxe. If you had some older version of fpc installed before, make sure to remove everything of it correctly before trying to install Free Pascal (otherwise compiling will fail with various weird error messages). Also, using the newest version is suggested.
-If you want to help the project by coding patches, we suggest you to use the [Lazarus 1.6](http://www.lazarus-ide.org/) or newer integrated development environment.
+[Free Pascal](http://freepascal.org/) 3.0.0 or newer is required to compile UltraStar Deluxe. Using the newest version is suggested.
 For linking and running the game, the following libraries are also required:
 - SDL2, SDL2_image
-- FFmpeg 4.0-7.1
+- FFmpeg 4.0-9.0
 - SQLite 3
 - [BASS](http://www.un4seen.com/bass.html)
 - some fonts like DejaVu
 - PortAudio
-- Lua 5.1, 5.2, 5.3 or 5.4
+- Lua 5.1, 5.2, 5.3, 5.4, or 5.5
 - OpenCV if you want webcam support
-- projectM 2,x if you want audio visualisation support
-
-Prebuilt DLLs for SDL2, SDL2_image, FFmpeg, SQLite, PortAudio, and Lua can be found in the releases section of [our MXE fork](https://github.com/UltraStar-Deluxe/mxe). You can use the dldlls.py script to download the DLLs for the checked out code. The remaining DLLs needed for Windows builds are part of this repository.
-
-## Compiling using Lazarus
-1. Start Lazarus.
-2. Choose Project → Open Project … in the menu bar. A file-dialog box will show.
-3. Change to the src subdirectory of your USDX working copy (e.g. ultrastardx/src).
-  * If you are running Windows, open the ultrastardx-win.lpi project-file (Preferably use the win32 verison of lazarus, as the included libraries are 32 bit).
-  * On Unix-like systems use the ultrastardx-unix.lpi file.
-4. Now you can compile USDX by choosing the menu entry Run → Build or pressing Ctrl+F9.
-5. If you want to compile and/or start USDX directly choose Run → Run or press F9.
+- projectM 4,x if you want audio visualisation support
 
 ## Compiling using make
 ### Install prequisites
@@ -32,30 +20,31 @@ Required libraries:
 - Archlinux: see the dependencies in the [ultrastardx-git](https://aur.archlinux.org/packages/ultrastardx-git) AUR package
 
 Optional libraries:
-- ProjectM visualization: `g++ libprojectm-dev` (Debian/Ubuntu) or `gcc-c++ libprojectM-devel` (Fedora)
+- [ProjectM](https://github.com/projectM-visualizer/projectm) visualization: You may need to compile this from source because 4.0 or later is required, but many distros still ship 2.x or 3.x
 - Webcam: `g++ libopencv-dev` (Debian/Ubuntu)
 
 #### MacOS (High Sierra and above)
 - Install Homebrew. Follow instructions from [brew.sh](http://brew.sh)
 - `brew install fpc` or get it from [freepascal.org](http://www.freepascal.org/down/i386/macosx.var)
 - `xcode-select --install`
-- `brew install sdl2 sdl2_image automake portaudio binutils sqlite freetype lua libtiff pkg-config ffmpeg`
+- `brew install sdl2 sdl2_image automake portaudio binutils sqlite freetype lua libtiff pkg-config ffmpeg opencv`
 
 #### Windows using MSYS2
-- Install [MSYS2](https://www.msys2.org)
-- Install [FPC](https://www.freepascal.org). You need at least a custom installation with the Free Pascal Utils (for `fpcres`) and the Units.
-- `pacman -S autoconf-wrapper automake-wrapper gcc git make mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_gfx mingw-w64-x86_64-SDL2_image mingw-w64-x86_64-SDL2_mixer mingw-w64-x86_64-SDL2_net mingw-w64-x86_64-SDL2_ttf mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-lua51 pkgconf`
+- Install [MSYS2](https://www.msys2.org). Use the UCRT64 environment
+- Install [FPC](https://www.freepascal.org). Use the Win32 cross-to-Win64 installer so you get the Win64 RTL units.
+- `pacman -S base-devel mingw-w64-ucrt-x86_64-toolchain mingw-w64-ucrt-x86_64-autotools mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-meson mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-git mingw-w64-ucrt-x86_64-ntldd mingw-w64-ucrt-x86_64-nasm patch`
 - Add some information to `.bash_profile`:
-  * Path to FPC, something like `PATH="${PATH}:/c/FPC/3.2.2/bin/i386-win32"`
-  * Path to mingw64 libraries, `PKG_CONFIG_PATH="${PKG_CONFIG_PATH}:/mingw64/lib/pkgconfig"`
+  * Path to the cross compiler: `PATH="${PATH}:/c/FPC/3.2.2/bin/i386-win32"`
+  * FPC config and base: `FPCCFG="/c/FPC/3.2.2/bin/i386-win32/fpc.cfg"` and `FPCDIR="/c/FPC/3.2.2"`
 
 ### Compile and run
 - `git clone https://github.com/UltraStar-Deluxe/USDX`
 - `cd USDX`
+- Windows only: compile the DLLs with `make -C dists/windows install`
 - `./autogen.sh`
 - `./configure` (see optional flags below)
-- `make` (on MacOS: `make macosx-standalone-app`)
-- `./game/ultrastardx[.exe]` (on MacOS: `open UltraStarDeluxe.app`)
+- `make` (on macOS: `make macos-standalone-app`)
+- `./game/ultrastardx[.exe]` (on MacOS: `open "UltraStar Deluxe.app"`)
 
 #### configure flags
 * `--enable-debug`: Outputs warnings and errors from Error.log also to the console, and prints stacktraces when an EAccessViolation occurs.
@@ -64,12 +53,9 @@ Optional libraries:
   This should support newer platforms like PulseAudio and PipeWire.
   Might not be able to detect the number of channels correctly when used with PulseAudio.
   Might fix issues experienced when using PortAudio on certain distributions.
-* `--without-opencv-cxx-api`: This is the default.
-  OpenCV does not need to be present at build time.
-  It will look for it at runtime using a deprecated C API, and enable webcam functionality if found.
-  Current Linux distributions do not offer the C API.
-* `--with-opencv-cxx-api`: Use OpenCV's newer C++ API.
-  Required for webcam support under Linux, but requires OpenCV to be present at both build time as well as runtime.
+* `--with-opencv`: Enable webcam support with OpenCV. By default, configure
+  auto-detects OpenCV 3+ and disables webcam support if OpenCV is not found.
+* `--without-opencv`: Build without webcam support even if OpenCV is installed.
 
 ## Compiling on Linux using flatpak-builder
 - The manifest for our Flathub releases is in a different repository:
@@ -85,7 +71,6 @@ Optional libraries:
 
 # Windows installer
 The CI does this for you, but if you need to do it manually:
-- Complete the set of DLLs in the `game` directory using a matching release from [here](https://github.com/UltraStar-Deluxe/mxe).
 - Create Windows portable version: zip the contents of the `game` directory
 - Create Windows installer:
   * Install NSIS (also install the Graphics and Language components during setup)

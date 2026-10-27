@@ -42,6 +42,11 @@ uses
   UWebcam;
 
 type
+  TAudioInputScanMode = (
+    aimFast,
+    aimFull
+  );
+
   TNoteType = (ntFreestyle, ntNormal, ntGolden, ntRap, ntRapGolden);
 
   TPos = record // Tracks[track].Lines[line].Notes[note]
@@ -147,7 +152,6 @@ type
     CurrentLine: integer;  // for drawing of current line
     High:        integer;  // = High(Line)!
     Number:      integer;
-    Resolution:  integer;
     NotesGAP:    integer;
     ScoreValue:  integer;
     Lines:       array of TLine;
@@ -230,24 +234,6 @@ type
   end;
 
 type
-  TSoundFX = class
-    public
-      EngineData: Pointer; // can be used for engine-specific data
-      procedure Init(); virtual; abstract;
-      procedure Removed(); virtual; abstract;
-
-      class function CanEnable: boolean; virtual; abstract;
-
-      function GetType: DWORD; virtual; abstract;
-      function GetPriority: LongInt; virtual; abstract;
-      function GetName: string; virtual; abstract;
-
-  end;
-  
-  TReplayGain = class(TSoundFX)
-  end;
-
-type
   TAudioProcessingStream = class;
   TOnCloseHandler = procedure(Stream: TAudioProcessingStream);
 
@@ -258,6 +244,8 @@ type
       function GetLength(): real;           virtual; abstract;
       function GetPosition(): real;         virtual; abstract;
       procedure SetPosition(Time: real);    virtual; abstract;
+      function GetStartTime(): real;         virtual; abstract;
+      procedure SetStartTime(Time: real);    virtual; abstract;
       function GetLoop(): boolean;          virtual; abstract;
       procedure SetLoop(Enabled: boolean);  virtual; abstract;
 
@@ -277,15 +265,25 @@ type
 
       property Length: real read GetLength;
       property Position: real read GetPosition write SetPosition;
+      property StartTime: real read GetStartTime write SetStartTime;
       property Loop: boolean read GetLoop write SetLoop;
   end;
 
   TAudioSourceStream = class(TAudioProcessingStream)
+    private
+      RG: single;
+
     protected
       function IsEOF(): boolean;            virtual; abstract;
       function IsError(): boolean;          virtual; abstract;
+      function GetStartTime(): real; override;
+      procedure SetStartTime(Time: real); override;
+      procedure SetReplayGain(const GainTag: AnsiString; const PeakTag: AnsiString);
+      procedure SetReplayGainR128(const R128Tag: AnsiString);
     public
+      constructor Create();
       function ReadData(Buffer: PByte; BufferSize: integer): integer; virtual; abstract;
+      function GetReplayGain(): single;
 
       property EOF: boolean read IsEOF;
       property Error: boolean read IsError;
@@ -309,14 +307,20 @@ type
       AvgSyncDiff: double;  //** average difference between stream and sync clock
       SyncSource: TSyncSource;
       SourceStream: TAudioSourceStream;
+      RG: single;
+      RGEnabled: boolean;
 
       function GetLatency(): double; virtual; abstract;
       function GetStatus(): TStreamStatus;  virtual; abstract;
       function GetVolume(): single;         virtual; abstract;
       procedure SetVolume(Volume: single);  virtual; abstract;
+      function GetStartTime(): real; override;
+      procedure SetStartTime(Time: real); override;
       function Synchronize(BufferSize: integer; FormatInfo: TAudioFormatInfo): integer;
       procedure FillBufferWithFrame(Buffer: PByteArray; BufferSize: integer; Frame: PByteArray; FrameSize: integer);
     public
+      constructor Create();
+
       (**
        * Opens a SourceStream for playback.
        * Note that the caller (not the TAudioPlaybackStream) is responsible to
@@ -325,7 +329,7 @@ type
        * guarantees to deliver this method's SourceStream parameter to
        * the OnClose-handler. Freeing SourceStream at OnClose is allowed.
        *)
-      function Open(SourceStream: TAudioSourceStream): boolean; virtual; abstract;
+      function Open(SourceStream: TAudioSourceStream): boolean; virtual;
 
       procedure Play();                     virtual; abstract;
       procedure Pause();                    virtual; abstract;
@@ -336,14 +340,17 @@ type
       procedure GetFFTData(var data: TFFTData);          virtual; abstract;
       function GetPCMData(var data: TPCMData): Cardinal; virtual; abstract;
 
-      procedure AddSoundFX(FX: TSoundFX);    virtual; abstract;
-      procedure RemoveSoundFX(FX: TSoundFX); virtual; abstract;
-
       procedure SetSyncSource(SyncSource: TSyncSource);
       function GetSourceStream(): TAudioSourceStream;
 
+      function GetReplayGainAdjustment(): single;
+      procedure SetReplayGainEnabled(RGEnabled: boolean); virtual;
+      function GetReplayGainEnabled(): boolean;
+
       property Status: TStreamStatus read GetStatus;
       property Volume: single read GetVolume write SetVolume;
+      property ReplayGainAdjustment: single read GetReplayGainAdjustment;
+      property ReplayGainEnabled: boolean read GetReplayGainEnabled write SetReplayGainEnabled;
   end;
 
   TAudioDecodeStream = class(TAudioSourceStream)
@@ -354,6 +361,7 @@ type
       FormatInfo: TAudioFormatInfo;
       ChannelMap: integer;
     public
+      constructor Create;
       destructor Destroy; override;
 
       function Open(ChannelMap: integer; FormatInfo: TAudioFormatInfo): boolean; virtual;
@@ -423,18 +431,20 @@ type
       procedure SetAlpha(Alpha: double);
       function GetAlpha(): double;
 
+      procedure SetReflection(Enabled: boolean);
+      function GetReflection: boolean;
       procedure SetReflectionSpacing(Spacing: double);
       function GetReflectionSpacing(): double;
 
       procedure GetFrame(Time: Extended);
       procedure Draw();
-      procedure DrawReflection();
 
 
       property Screen: integer read GetScreen;
       property Width: double read GetWidth write SetWidth;
       property Height: double read GetHeight write SetHeight;
       property Alpha: double read GetAlpha write SetAlpha;
+      property Reflection: boolean read GetReflection write SetReflection;
       property ReflectionSpacing: double read GetReflectionSpacing write SetReflectionSpacing;
       property FrameAspect: real read GetFrameAspect;
       property AspectCorrection: TAspectCorrection read GetAspectCorrection write SetAspectCorrection;
@@ -463,6 +473,10 @@ type
 
       procedure SetAppVolume(Volume: single);
       procedure SetVolume(Volume: single);
+      procedure SetVocalsBalance(Balance: single);
+      function GetVocalsBalance: single;
+      function HasInstrumentalTrack: boolean;
+      function GetOverallVolume: single;
       procedure SetLoop(Enabled: boolean);
 
       procedure FadeIn(Time: real; TargetVolume: single);
@@ -472,18 +486,25 @@ type
       procedure Rewind;
       function  Finished: boolean;
       function  Length: real;
+      function  GetFileName: string;
 
-      function Open(const Filename: IPath): boolean; // true if succeed
+      function Open(const Filename: IPath; const FilenameKaraoke: IPath): boolean; // true if succeed
       procedure Close;
 
       procedure Play;
+      procedure ToggleKaraoke;
       procedure Pause;
       procedure Stop;
 
       procedure SetPosition(Time: real);
       function GetPosition: real;
 
+      procedure SetStartTime(Time: real);
+      function GetStartTime: real;
+
       property Position: real read GetPosition write SetPosition;
+      property StartTime: real read GetStartTime write SetStartTime;
+
 
       // Sounds
       // TODO:
@@ -502,8 +523,10 @@ type
 
       // Interface for Visualizer
       function GetPCMData(var Data: TPCMData): Cardinal;
+      function GetFormatInfo(): TAudioFormatInfo;
 
       function CreateVoiceStream(ChannelMap: integer; FormatInfo: TAudioFormatInfo): TAudioVoiceStream;
+      function CreatePlaybackStreamForSource(SourceStream: TAudioSourceStream): TAudioPlaybackStream;
   end;
 
   IGenericDecoder = Interface
@@ -537,7 +560,7 @@ type
   IAudioInput = Interface
   ['{A5C8DA92-2A0C-4AB2-849B-2F7448C6003A}']
       function GetName: String;
-      function InitializeRecord: boolean;
+      function InitializeRecord(ScanMode: TAudioInputScanMode): boolean;
       function FinalizeRecord(): boolean;
 
       procedure CaptureStart;
@@ -587,7 +610,7 @@ const
     '%SOUNDPATH%/menu swoosh.mp3',                  // Swoosh
     '%SOUNDPATH%/select music change music 50.mp3', // Change
     '%SOUNDPATH%/option change col.mp3',            // Option
-    '%SOUNDPATH%/rimshot022b.mp3'                   // Click
+    '%SOUNDPATH%/rimshot022b.wav'                   // Click
     {
     '%SOUNDPATH%/bassdrumhard076b.mp3',             // Drum (unused)
     '%SOUNDPATH%/hihatclosed068b.mp3',              // Hihat (unused)
@@ -622,6 +645,7 @@ type
 
       procedure StartBgMusic();
       procedure PauseBgMusic();
+      procedure ApplySfxVolume(Volume: single);
       // TODO
       //function AddSound(Filename: IPath): integer;
       //procedure RemoveSound(ID: integer);
@@ -630,21 +654,25 @@ type
   end;
 
 var
-  // TODO: JB --- THESE SHOULD NOT BE GLOBAL
-  Tracks: array of TLines;
   LyricsState: TLyricsState;
   SoundLib: TSoundLibrary;
-
 
 procedure InitializeSound;
 procedure InitializeVideo;
 procedure FinalizeMedia;
+function RefreshAudioInputDevices(ScanMode: TAudioInputScanMode): boolean;
 
 function  Visualization(): IVideoPlayback;
 function  VideoPlayback(): IVideoPlayback;
 function  AudioPlayback(): IAudioPlayback;
 function  AudioInput(): IAudioInput;
 function  AudioDecoders(): TInterfaceList;
+
+procedure SetAudioVolumePercent(Value: integer);
+procedure SetVocalsVolumePercent(Value: integer);
+procedure SetSfxVolumePercent(Value: integer);
+procedure SetPreviewVolumePercent(Value: integer);
+procedure SetBackgroundMusicVolumePercent(Value: integer);
 
 function  MediaManager: TInterfaceList;
 
@@ -659,6 +687,7 @@ uses
   UIni,
   UNote,
   UCommandLine,
+  UCommon,
   URecord,
   ULog,
   UPathUtils;
@@ -752,6 +781,109 @@ begin
   Result := AudioDecoderList;
 end;
 
+function RefreshAudioInputDevices(ScanMode: TAudioInputScanMode): boolean;
+var
+  CurrentAudioInput: IAudioInput;
+begin
+  CurrentAudioInput := AudioInput();
+  if not assigned(CurrentAudioInput) then
+  begin
+    Result := false;
+    Exit;
+  end;
+
+  CurrentAudioInput.FinalizeRecord();
+  Result := CurrentAudioInput.InitializeRecord(ScanMode);
+  if not Result then
+    Log.LogError('Failed to refresh input devices for ' + CurrentAudioInput.GetName());
+
+  AudioInputProcessor.UpdateInputDeviceConfig();
+end;
+
+procedure SetAudioVolumePercent(Value: integer);
+var
+  Clamped: integer;
+  Playback: IAudioPlayback;
+begin
+  if Value < 0 then
+    Clamped := 0
+  else if Value > 100 then
+    Clamped := 100
+  else
+    Clamped := Value;
+
+  Ini.AudioVolume := Clamped;
+  Playback := AudioPlayback();
+  if assigned(Playback) then
+    Playback.SetVolume(Clamped / 100);
+end;
+
+procedure SetVocalsVolumePercent(Value: integer);
+var
+  Clamped: integer;
+  Playback: IAudioPlayback;
+begin
+  if Value < 0 then
+    Clamped := 0
+  else if Value > 100 then
+    Clamped := 100
+  else
+    Clamped := Value;
+
+  Ini.VocalsVolume := Clamped;
+  Playback := AudioPlayback();
+  if assigned(Playback) then
+    Playback.SetVocalsBalance(Clamped / 100);
+end;
+
+procedure SetSfxVolumePercent(Value: integer);
+var
+  Clamped: integer;
+begin
+  if Value < 0 then
+    Clamped := 0
+  else if Value > 100 then
+    Clamped := 100
+  else
+    Clamped := Value;
+
+  Ini.SfxVolume := Clamped;
+  if assigned(SoundLib) then
+    SoundLib.ApplySfxVolume(Clamped / 100);
+end;
+
+procedure SetPreviewVolumePercent(Value: integer);
+var
+  Clamped: integer;
+begin
+  if Value < 0 then
+    Clamped := 0
+  else if Value > 100 then
+    Clamped := 100
+  else
+    Clamped := Value;
+
+  Ini.PreviewVolume := Clamped;
+end;
+
+procedure SetBackgroundMusicVolumePercent(Value: integer);
+var
+  Clamped: integer;
+  Volume: single;
+begin
+  if Value < 0 then
+    Clamped := 0
+  else if Value > 100 then
+    Clamped := 100
+  else
+    Clamped := Value;
+
+  Ini.BackgroundMusicVolume := Clamped;
+  Volume := Clamped / 100;
+  if assigned(SoundLib) and assigned(SoundLib.BGMusic) then
+    SoundLib.BGMusic.SetVolume(Volume);
+end;
+
 procedure FilterInterfaceList(const IID: TGUID; InList, OutList: TInterfaceList);
 var
   i: integer;
@@ -820,7 +952,7 @@ begin
   for i := 0 to InterfaceList.Count-1 do
   begin
     CurrentAudioInput := InterfaceList[i] as IAudioInput;
-    if (CurrentAudioInput.InitializeRecord()) then
+    if (CurrentAudioInput.InitializeRecord(aimFast)) then
     begin
       DefaultAudioInput := CurrentAudioInput;
       break;
@@ -935,15 +1067,16 @@ end;
 
 procedure FinalizeMedia;
 begin
-  // stop, close and free sounds
-  SoundLib.Free;
-
-  // release webcam
-  Webcam.Free;
-
-  // stop and close music stream
+  // Stop and release the main music streams before auxiliary sound effects.
+  // This avoids backend teardown races during shutdown.
   if (AudioPlayback <> nil) then
     AudioPlayback.Close;
+
+  // stop, close and free sounds
+  FreeAndNil(SoundLib);
+
+  // release webcam
+  FreeAndNil(Webcam);
 
   // stop any active captures
   if (AudioInput <> nil) then
@@ -990,13 +1123,18 @@ begin
   Swoosh  := AudioPlayback.OpenSound(SoundPath.Append('menu swoosh.mp3'));
   Change  := AudioPlayback.OpenSound(SoundPath.Append('select music change music 50.mp3'));
   Option  := AudioPlayback.OpenSound(SoundPath.Append('option change col.mp3'));
-  Click   := AudioPlayback.OpenSound(SoundPath.Append('rimshot022b.mp3'));
+  Click   := AudioPlayback.OpenSound(SoundPath.Append('rimshot022b.wav'));
   Applause:= AudioPlayback.OpenSound(SoundPath.Append('Applause.mp3'));
 
   BGMusic := AudioPlayback.OpenSound(SoundPath.Append('background track.mp3'));
 
   if (BGMusic <> nil) then
+  begin
     BGMusic.Loop := True;
+    BGMusic.SetVolume(EnsureRange(Ini.BackgroundMusicVolume, 0, 100) / 100);
+  end;
+
+  ApplySfxVolume(Ini.SfxVolume / 100);
 end;
 
 procedure TSoundLibrary.UnloadSounds();
@@ -1009,6 +1147,29 @@ begin
   FreeAndNil(Click);
   FreeAndNil(Applause);
   FreeAndNil(BGMusic);
+end;
+
+procedure TSoundLibrary.ApplySfxVolume(Volume: single);
+begin
+  if Volume < 0 then
+    Volume := 0
+  else if Volume > 1 then
+    Volume := 1;
+
+  if Start <> nil then
+    Start.Volume := Volume;
+  if Back <> nil then
+    Back.Volume := Volume;
+  if Swoosh <> nil then
+    Swoosh.Volume := Volume;
+  if Change <> nil then
+    Change.Volume := Volume;
+  if Option <> nil then
+    Option.Volume := Volume;
+  if Click <> nil then
+    Click.Volume := Volume;
+  if Applause <> nil then
+    Applause.Volume := Volume;
 end;
 
 (* TODO
@@ -1026,7 +1187,7 @@ begin
   if (TBackgroundMusicOption(Ini.BackgroundMusicOption) = bmoOn) and
     (Soundlib.BGMusic <> nil) and not (Soundlib.BGMusic.Status = ssPlaying) then
   begin
-    SoundLib.BGMusic.SetVolume(IPreviewVolumeVals[Ini.PreviewVolume]);
+    SoundLib.BGMusic.SetVolume(EnsureRange(Ini.BackgroundMusicVolume, 0, 100) / 100);
     AudioPlayback.PlaySound(Soundlib.BGMusic);
   end;
 end;
@@ -1075,8 +1236,110 @@ begin
   end;
 end;
 
+{ TAudioSourceStream }
+
+constructor TAudioSourceStream.Create();
+begin
+  RG := 1.0;
+end;
+
+procedure TAudioSourceStream.SetReplayGain(const GainTag: AnsiString; const PeakTag: AnsiString);
+var
+  GainStr: AnsiString;
+  GainValDb: single;
+  PeakVal: single;
+  PeakValDb: single;
+  GainTagTokens: TStringDynArray;
+begin
+    GainTagTokens := SplitString(GainTag, 0); //Split string by space to remove 'dB'
+    if (System.Length(GainTagTokens) > 0) then
+    begin
+      try
+        GainStr := GainTagTokens[0];
+
+        // Some ReplayGain scanners prefix positive gains with a + character,
+        // even though this violates the ReplayGain standard. Let's handle this
+        // case anyways
+        if (GainStr.StartsWith('+')) then
+          GainStr := GainStr.Substring(1);
+        GainValDb := StrToFloat(GainStr);
+
+        // If the file has a replaygain peak tag, use it for clipping protection
+        if (not PeakTag.IsEmpty()) then
+        begin
+          PeakVal := StrToFloat(PeakTag);
+          if (PeakVal > 0.0) then
+          begin
+            PeakValDb := 20.0 * log10(PeakVal);
+            GainValDb := Min(GainValDb, 0.0 - PeakValDb);
+          end;
+        end;
+
+        RG := power(10.0, (GainValDb / 20.0));
+        Log.LogInfo('Using ReplayGain adjustment: ' + FormatFloat('0.00', GainValDb)
+                    + ' dB (' + FormatFloat('0.000', RG) + ')', 'TAudioSourceStream.SetReplayGain');
+      except
+        Log.LogError('Failed to parse ReplayGain tag');
+      end;
+    end;
+end;
+
+
+(*  Opus files support another loudness normalization scheme that is completely
+ *  separate from ReplayGain. Values are stored in the 'R128_TRACK_GAIN' tag,
+ *  encoded as a Q7.8 fixed-point number, and there is no peak information.
+ *  To obtain the gain in decibels, divide by 256. See RFC 7845 for more information:
+ *
+ *  https://datatracker.ietf.org/doc/html/rfc7845
+ *)
+procedure TAudioSourceStream.SetReplayGainR128(const R128Tag: AnsiString);
+var
+  GainValDb: single;
+begin
+  try
+
+    // The R128_TRACK_GAIN tags are referenced to -23 LUFS, but ReplayGain tags are
+    // referenced to -18 LUFS. This means that Opus files will play back 5 dB quieter
+    // than non-Opus files we apply the gain directly. So we add a 5 dB preamp value to
+    // the R128 tag to ensure that Opus files will play back at the same volume as non-Opus files
+    GainValDb := (StrToFloat(R128Tag) / 256.0) + 5.0;
+    RG := power(10.0, (GainValDb / 20.0));
+    Log.LogInfo('Using ReplayGain adjustment: ' + FormatFloat('0.00', GainValDb)
+                + ' dB (' + FormatFloat('0.000', RG) + ')', 'TAudioSourceStream.SetReplayGainR128');
+  except
+    Log.LogError('Failed to parse R128 tag');
+  end;
+end;
+
+function TAudioSourceStream.GetReplayGain(): single;
+begin
+  Result := RG;
+end;
+
+function TAudioSourceStream.GetStartTime(): real;
+begin
+  Result := 0;
+end;
+
+procedure TAudioSourceStream.SetStartTime();
+begin
+end;
 
 { TAudioPlaybackStream }
+
+constructor TAudioPlaybackStream.Create();
+begin
+  RG := 1.0;
+  RGEnabled := false;
+  inherited;
+end;
+
+function TAudioPlaybackStream.Open(SourceStream: TAudioSourceStream): boolean;
+begin
+  if (Ini.ReplayGain = 1) then
+    RG := SourceStream.GetReplayGain();
+  Result := true;
+end;
 
 function TAudioPlaybackStream.GetSourceStream(): TAudioSourceStream;
 begin
@@ -1107,9 +1370,7 @@ end;
 function TAudioPlaybackStream.Synchronize(BufferSize: integer; FormatInfo: TAudioFormatInfo): integer;
 var
   TimeDiff: double;
-  FrameDiff: double;
   FrameSkip: integer;
-  ReqFrames: integer;
   MasterClock: real;
   CurPosition: real;
 const
@@ -1209,7 +1470,44 @@ begin
     Move(Frame[0], Buffer[i*FrameSize], FrameSize);
 end;
 
+function TAudioPlaybackStream.GetReplayGainAdjustment(): single;
+begin
+  if (RGEnabled) then
+    Result := RG
+  else
+    Result := 1.0;
+end;
+
+function TAudioPlaybackStream.GetReplayGainEnabled(): boolean;
+begin
+  Result := RGEnabled;
+end;
+
+procedure TAudioPlaybackStream.SetReplayGainEnabled(RGEnabled: boolean);
+begin
+  self.RGEnabled := RGEnabled;
+end;
+
+function TAudioPlaybackStream.GetStartTime(): real;
+begin
+  if (assigned(SourceStream)) then
+    Result := SourceStream.StartTime
+  else
+    Result := 0;
+end;
+
+procedure TAudioPlaybackStream.SetStartTime(Time: real);
+begin
+  if (assigned(SourceStream)) then
+    SourceStream.StartTime := Time;
+end;
+
 { TAudioVoiceStream }
+
+constructor TAudioVoiceStream.Create();
+begin
+  inherited;
+end;
 
 function TAudioVoiceStream.Open(ChannelMap: integer; FormatInfo: TAudioFormatInfo): boolean;
 begin
@@ -1277,8 +1575,9 @@ end;
 
 function TLine.HasLength(out Len: integer): boolean;
 begin
+  Len := 0;
   Result := false;
-  if Length(Notes) >= 0 then
+  if Length(Notes) > 0 then
   begin
     Len := EndBeat - Notes[0].StartBeat;
     Result := (Len > 0);
@@ -1301,7 +1600,10 @@ end;
 
 function TLine.GetLength(): integer;
 begin
-  Result := ifthen(Length(Notes) < 0, 0, EndBeat - Notes[0].StartBeat);
+  if Length(Notes) > 0 then
+    Result := EndBeat - Notes[0].StartBeat
+  else
+    Result := 0;
 end;
 
 function FindNote(beat: integer): TPos;
@@ -1315,12 +1617,12 @@ var
 begin
   found := false;
 
-  for LineIndex := 0 to High(Tracks[0].Lines) do
+  for LineIndex := 0 to High(CurrentSong.Tracks[0].Lines) do
   begin
-    for NoteIndex := 0 to High(Tracks[0].Lines[LineIndex].Notes) do
+    for NoteIndex := 0 to High(CurrentSong.Tracks[0].Lines[LineIndex].Notes) do
     begin
-      if (beat >= Tracks[0].Lines[LineIndex].Notes[NoteIndex].StartBeat) and
-         (beat <= Tracks[0].Lines[LineIndex].Notes[NoteIndex].StartBeat + Tracks[0].Lines[LineIndex].Notes[NoteIndex].Duration) then
+      if (beat >= CurrentSong.Tracks[0].Lines[LineIndex].Notes[NoteIndex].StartBeat) and
+         (beat <= CurrentSong.Tracks[0].Lines[LineIndex].Notes[NoteIndex].StartBeat + CurrentSong.Tracks[0].Lines[LineIndex].Notes[NoteIndex].Duration) then
       begin
         Result.track := 0;
         Result.line := LineIndex;
@@ -1336,12 +1638,12 @@ begin
 
   if CurrentSong.isDuet and (PlayersPlay <> 1) then
   begin
-    for LineIndex := 0 to High(Tracks[1].Lines) do
+    for LineIndex := 0 to High(CurrentSong.Tracks[1].Lines) do
     begin
-      for NoteIndex := 0 to High(Tracks[1].Lines[LineIndex].Notes) do
+      for NoteIndex := 0 to High(CurrentSong.Tracks[1].Lines[LineIndex].Notes) do
       begin
-        if (beat >= Tracks[1].Lines[LineIndex].Notes[NoteIndex].StartBeat) and
-          (beat <= Tracks[1].Lines[LineIndex].Notes[NoteIndex].StartBeat + Tracks[1].Lines[LineIndex].Notes[NoteIndex].Duration) then
+        if (beat >= CurrentSong.Tracks[1].Lines[LineIndex].Notes[NoteIndex].StartBeat) and
+          (beat <= CurrentSong.Tracks[1].Lines[LineIndex].Notes[NoteIndex].StartBeat + CurrentSong.Tracks[1].Lines[LineIndex].Notes[NoteIndex].Duration) then
         begin
           Result.track := 1;
           Result.line := LineIndex;
@@ -1358,11 +1660,11 @@ begin
 
   min := high(integer);
   //second try (approximating)
-  for LineIndex := 0 to High(Tracks[0].Lines) do
+  for LineIndex := 0 to High(CurrentSong.Tracks[0].Lines) do
   begin
-    for NoteIndex := 0 to High(Tracks[0].Lines[LineIndex].Notes) do
+    for NoteIndex := 0 to High(CurrentSong.Tracks[0].Lines[LineIndex].Notes) do
     begin
-      diff := abs(Tracks[0].Lines[LineIndex].Notes[NoteIndex].StartBeat - beat);
+      diff := abs(CurrentSong.Tracks[0].Lines[LineIndex].Notes[NoteIndex].StartBeat - beat);
       if diff < min then
       begin
         Result.track := 0;
@@ -1375,11 +1677,11 @@ begin
 
   if CurrentSong.isDuet and (PlayersPlay <> 1) then
   begin
-    for LineIndex := 0 to High(Tracks[1].Lines) do
+    for LineIndex := 0 to High(CurrentSong.Tracks[1].Lines) do
     begin
-      for NoteIndex := 0 to High(Tracks[1].Lines[LineIndex].Notes) do
+      for NoteIndex := 0 to High(CurrentSong.Tracks[1].Lines[LineIndex].Notes) do
       begin
-        diff := abs(Tracks[1].Lines[LineIndex].Notes[NoteIndex].StartBeat - beat);
+        diff := abs(CurrentSong.Tracks[1].Lines[LineIndex].Notes[NoteIndex].StartBeat - beat);
         if diff < min then
         begin
           Result.track := 1;

@@ -59,7 +59,6 @@ type
     function ParseMouse(MouseButton: integer; BtnDown: boolean; X, Y: integer): boolean; override;
     procedure OnShow; override;
     procedure SetInteraction(Num: integer); override;
-    procedure SetAnimationProgress(Progress: real); override;
     function Draw: boolean; override;
   end;
 
@@ -79,20 +78,15 @@ uses
   ULog,
   UNote,
   UParty,
+  URenderer,
   USkins,
   USongs,
-  UTexture,
   UUnicodeUtils;
 
 function TScreenMain.ParseInput(PressedKey: Cardinal; CharCode: UCS4Char;
   PressedDown: boolean): boolean;
-var
-  SDL_ModState: word;
 begin
   Result := true;
-
-  SDL_ModState := SDL_GetModState and (KMOD_LSHIFT + KMOD_RSHIFT +
-    KMOD_LCTRL + KMOD_RCTRL + KMOD_LALT + KMOD_RALT);
 
   if (PressedDown) then
   begin // Key Down
@@ -143,8 +137,9 @@ begin
       end;
 
       SDLK_C: begin
-         FadeTo(@ScreenCredits, SoundLib.Start);
-         Exit;
+        ScreenAbout.ShowCreditsInAbout;
+        FadeTo(@ScreenAbout, SoundLib.Start);
+        Exit;
       end;
 
       SDLK_Q: begin
@@ -176,10 +171,7 @@ begin
         begin
           if (Songs.SongList.Count >= 1) then
           begin
-            if (Ini.Players >= 0) and (Ini.Players <= 3) then
-              PlayersPlay := Ini.Players + 1;
-            if (Ini.Players = 4) then
-              PlayersPlay := 6;
+            PlayersPlay := UIni.IPlayersVals[Ini.Players];
 
             if Ini.OnSongClick = sSelectPlayer then
               FadeTo(@ScreenSong)
@@ -303,7 +295,7 @@ begin
 
   Interaction := 0;
 
-  WantSoftwareRenderingMsg := SoftwareRendering;
+  WantSoftwareRenderingMsg := Renderer.SoftwareRendering;
 end;
 
 procedure TScreenMain.OnShow;
@@ -343,12 +335,6 @@ begin
   inherited SetInteraction(Num);
   Text[TextDescription].Text     := Theme.Main.Description[Interaction];
   Text[TextDescriptionLong].Text := Theme.Main.DescriptionLong[Interaction];
-end;
-
-procedure TScreenMain.SetAnimationProgress(Progress: real);
-begin
-  Statics[0].Texture.ScaleW := Progress;
-  Statics[0].Texture.ScaleH := Progress;
 end;
 
 end.

@@ -63,6 +63,7 @@ type
       MapIIDtoDescID: array of integer;
 
       procedure UpdateTextDescriptionFor(IID: integer); virtual;
+      procedure OpenRecordOptions;
 
     public
       TextDescription:    integer;
@@ -70,7 +71,6 @@ type
       function ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean; override;
       procedure OnShow; override;
       procedure SetInteraction(Num: integer); override;
-      procedure SetAnimationProgress(Progress: real); override;
   end;
 
 const
@@ -84,8 +84,17 @@ uses
   UHelp,
   ULanguage,
   ULog,
+  UScreenOptionsRecord,
   UWebcam,
   UUnicodeUtils;
+
+procedure TScreenOptions.OpenRecordOptions;
+begin
+  RefreshAudioInputDevices(aimFull);
+  FreeAndNil(ScreenOptionsRecord);
+  ScreenOptionsRecord := TScreenOptionsRecord.Create;
+  FadeTo(@ScreenOptionsRecord, SoundLib.Start);
+end;
 
 function TScreenOptions.ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean;
 begin
@@ -132,7 +141,7 @@ begin
 
       SDLK_R:
         begin
-          FadeTo(@ScreenOptionsRecord, SoundLib.Start);
+          OpenRecordOptions;
           Exit;
         end;
 
@@ -228,8 +237,7 @@ begin
 
           if Interaction = ButtonRecordIID then
           begin
-            AudioPlayback.PlaySound(SoundLib.Start);
-            FadeTo(@ScreenOptionsRecord);
+            OpenRecordOptions;
           end;
 
           if Interaction = ButtonAdvancedIID then
@@ -240,7 +248,7 @@ begin
 
           if Interaction = ButtonNetworkIID then
           begin
-            if (High(DataBase.NetworkUser) = -1) then
+            if ((High(DataBase.NetworkUser) = -1)) then
               ScreenPopupError.ShowPopup(Language.Translate('SING_OPTIONS_NETWORK_NO_DLL'))
             else
             begin
@@ -346,16 +354,7 @@ begin
   UpdateTextDescriptionFor(Interaction);
 end;
 
-procedure TScreenOptions.SetAnimationProgress(Progress: real);
-var i: integer;
-begin
-  // update all buttons
-  for i := 0 to High(Button) do
-    Button[i].Texture.ScaleW := Progress;
-end;
-
 procedure TScreenOptions.UpdateTextDescriptionFor(IID: integer);
-var index: integer;
 begin
   // Sanity check
   if (IID < 0 ) or (IID >= Length(MapIIDtoDescID)) then

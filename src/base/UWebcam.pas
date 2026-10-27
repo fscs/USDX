@@ -35,15 +35,18 @@ interface
 
 uses
   Classes,
-  UTexture,
+  URenderer
+  {$IFDEF UseOpenCVWrapper},
   sdl2,
   opencv_highgui,
   opencv_core,
   opencv_imgproc,
-  opencv_types;
+  opencv_types
+  {$ENDIF};
 
 type
 
+{$IFDEF UseOpenCVWrapper}
   TWebcam = class
     private
       IsEnabled:     Boolean;
@@ -74,6 +77,19 @@ type
       function FrameEffect(Nr_Effect: integer; Frame: PIplImage): PIplImage;
       function FrameAdjust(Frame: PIplImage): PIplImage;
    end;
+{$ELSE}
+  TWebcam = class
+    public
+      Capture: Pointer;
+      TextureCam: TTexture;
+
+      constructor Create;
+      procedure Start;
+      procedure Release;
+      procedure Restart;
+      procedure GetWebcamFrame();
+   end;
+{$ENDIF}
 
 var
   Webcam:    TWebcam;
@@ -81,8 +97,8 @@ var
 
 implementation
 
+{$IFDEF UseOpenCVWrapper}
 uses
-  dglOpenGL,
   SysUtils,
   ULog,
   UIni;
@@ -128,6 +144,7 @@ begin
   end;
   SDL_DestroyCond(StopCond);
   SDL_DestroyMutex(Mutex);
+  TextureCam.Free;
   inherited;
 end;
 
@@ -246,11 +263,7 @@ begin
 
   if WebcamFrame <> nil then
   begin
-    if (TextureCam.TexNum > 0) then
-    begin
-      glDeleteTextures(1, PGLuint(@TextureCam.TexNum));
-      TextureCam.TexNum := 0;
-    end;
+    FreeAndNil(TextureCam);
 
     if (Ini.WebCamFlip = 0) then
       cvFlip(WebcamFrame, nil, 1);
@@ -258,7 +271,7 @@ begin
     WebcamFrame := FrameAdjust(WebcamFrame);
     WebcamFrame := FrameEffect(Ini.WebCamEffect, WebcamFrame);
 
-    TextureCam := Texture.CreateTexture(WebcamFrame.imageData, nil, WebcamFrame.Width, WebcamFrame.Height);
+    TextureCam := Renderer.CreateTexture(WebcamFrame.imageData, nil, WebcamFrame.Width, WebcamFrame.Height, TEXTURE_TYPE_PLAIN, false);
 
     cvReleaseImage(@WebcamFrame);
   end;
@@ -440,5 +453,39 @@ begin
 end;
 
 //----------
+
+{$ELSE}
+
+uses
+  SysUtils;
+
+constructor TWebcam.Create;
+begin
+  inherited;
+  Capture := nil;
+end;
+
+procedure TWebcam.Start;
+begin
+  Capture := nil;
+end;
+
+procedure TWebcam.Release;
+begin
+  Capture := nil;
+  FreeAndNil(TextureCam);
+end;
+
+procedure TWebcam.Restart;
+begin
+  Release;
+  Start;
+end;
+
+procedure TWebcam.GetWebcamFrame();
+begin
+end;
+
+{$ENDIF}
 
 end.

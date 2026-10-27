@@ -53,6 +53,8 @@ type
     Name:     UTF8String;
     Filename: IPath;
     Items:    APlaylistItem;
+    FixedOrder: Boolean;
+    LastRead: LongInt;
   end;
 
   APlaylist = array of TPlaylist;
@@ -62,10 +64,15 @@ type
   //----------
   TPlaylistManager = class
     private
+      SongOrderDirty: Boolean;
+      function  FindSongIndexByNames(const Artist, Title: UTF8String): Integer;
+      procedure MoveSongIndex(const OldIndex, NewIndex: Integer);
+      procedure ApplyPlaylistOrder(Index: Cardinal);
+      procedure ReindexAllPlaylists;
 
     public
       Mode:         TSongMode;     //Current Playlist Mode for SongScreen
-      CurPlayList:  Cardinal;
+      CurPlayList:  Integer;
       CurItem:      Cardinal;
 
       Playlists:    APlaylist;
@@ -73,9 +80,12 @@ type
       constructor Create;
       procedure   LoadPlayLists;
       function    LoadPlayList(Index: Cardinal; const Filename: IPath): Boolean;
+      function    ReloadPlayList(Index: Cardinal): Boolean;
       procedure   SavePlayList(Index: Cardinal);
 
-      procedure   SetPlayList(Index: Cardinal);
+      procedure   RestoreSongOrder;
+      procedure   SetPlayList(Index: Integer; SongID: Integer = -1);
+      procedure   UnsetPlaylist;
 
       function    AddPlaylist(const Name: UTF8String): Cardinal;
       procedure   DelPlaylist(const Index: Cardinal);
@@ -114,7 +124,9 @@ uses
 constructor TPlayListManager.Create;
 begin
   inherited;
+  SongOrderDirty := False;
   LoadPlayLists;
+  CurPlayList := -1;
 end;
 
 //----------
@@ -198,6 +210,8 @@ begin
   //Set Filename
   Playlists[Index].Filename := Filename;
   Playlists[Index].Name := '';
+  Playlists[Index].FixedOrder := False;
+  Playlists[Index].LastRead := FileAge(Filename.ToNative);
 
   //Read Until End of File
   while TextStream.ReadLine(Line) do
@@ -213,6 +227,12 @@ begin
           //Found Name Value
           if (Uppercase(Trim(copy(Line, 2, PosDelimiter - 2))) = 'NAME') then
             PlayLists[Index].Name := Trim(copy(Line, PosDelimiter + 1,Length(Line) - PosDelimiter))
+          else if (Uppercase(Trim(copy(Line, 2, PosDelimiter - 2))) = 'FIXEDORDER') then
+          begin
+            // Accept On/Off (case-insensitive, allow spaces)
+            Line := Trim(copy(Line, PosDelimiter + 1,Length(Line) - PosDelimiter));
+            PlayLists[Index].FixedOrder := (UpperCase(Line) = 'ON');
+          end
             
         end
         //Song Entry
@@ -245,6 +265,31 @@ begin
   TextStream.Free;
 end;
 
+//----------
+//ReloadPlayList - Reload a Playlist in the Array
+//----------
+function TPlayListManager.ReloadPlayList(Index: Cardinal): Boolean;
+var
+  PlaylistFile: IPath;
+begin
+  if (Int(Index) > High(PlayLists)) then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  PlaylistFile := PlaylistPath.Append(Playlists[Index].Filename);
+  if not FileExists(PlaylistFile.ToNative) or (FileAge(PlaylistFile.ToNative) <= Playlists[Index].LastRead) then
+  begin
+    Result := false;
+    Exit;
+  end;
+
+  SetLength(PlayLists[Index].Items, 0);
+
+  Result := LoadPlayList(Index, PlayLists[Index].Filename);
+end;
+
 {**
  * Saves the specified Playlist
  *}
@@ -272,6 +317,11 @@ begin
 
     // Write name information
     TextStream.WriteLine('#Name: ' + Playlists[Index].Name);
+    // Write playlist order information
+    if Playlists[Index].FixedOrder then
+      TextStream.WriteLine('#FixedOrder: On')
+    else
+      TextStream.WriteLine('#FixedOrder: Off');
 
     // Write song information
     TextStream.WriteLine('#Songs:');
@@ -289,12 +339,21 @@ end;
 {**
  * Display a Playlist in CatSongs
  *}
-procedure TPlayListManager.SetPlayList(Index: Cardinal);
+procedure TPlayListManager.SetPlayList(Index: Integer; SongID: Integer = -1);
 var
-  I: Integer;
+  I, SongIdx, TargetSongID, RandomVisibleIndex, VisibleCount: Integer;
 begin
-  if (Int(Index) > High(PlayLists)) then
+  if (Index < 0) or (Index > High(PlayLists)) then
     exit;
+
+  RestoreSongOrder;
+
+  if Playlists[Index].FixedOrder then
+    ApplyPlaylistOrder(Index)
+  else
+    SongOrderDirty := False;
+
+  ScreenSong.SyncCoversToSongs;
 
   //Hide all Songs
   for I := 0 to high(CatSongs.Song) do
@@ -303,11 +362,26 @@ begin
   //Show Songs in PL
   for I := 0 to high(PlayLists[Index].Items) do
   begin
-    CatSongs.Song[PlayLists[Index].Items[I].SongID].Visible := True;
+    SongIdx := PlayLists[Index].Items[I].SongID;
+    if (SongIdx >= 0) and (SongIdx <= High(CatSongs.Song)) then
+      CatSongs.Song[SongIdx].Visible := True
+    else
+      Log.LogError('Playlist entry has invalid SongID after reordering: ' + Playlists[Index].Items[I].Artist + ' - ' + Playlists[Index].Items[I].Title);
   end;
 
-  CatSongs.LastVisChecked := 0;
-  CatSongs.LastVisIndex := 0;
+  CatSongs.ResetVisibleIndexCache;
+
+  if ScreenSong.ListMinLine > 0 then
+  begin
+    I := CatSongs.VisibleSongs - Theme.Song.ListCover.Rows;
+    if I < 0 then
+      I := 0;
+    if ScreenSong.ListMinLine > I then
+      ScreenSong.ListMinLine := I;
+  end;
+
+  if Assigned(ScreenSong) then
+    ScreenSong.FilterDuetsInPartyMode; // in party mode
 
   //Set CatSongsMode + Playlist Mode
   CatSongs.CatNumShow := -3;
@@ -317,16 +391,98 @@ begin
   CurPlaylist := Index;
 
   //Show Cat in Topleft:
-  ScreenSong.ShowCatTLCustom(Format(Theme.Playlist.CatText,[Playlists[Index].Name]));
+  // Append order status to the displayed playlist name
+  if Playlists[Index].FixedOrder then
+    ScreenSong.ShowCatTLCustom(Format(Theme.Playlist.CatText,[Playlists[Index].Name + '  [Fixed Order: On]']))
+  else
+    ScreenSong.ShowCatTLCustom(Format(Theme.Playlist.CatText,[Playlists[Index].Name + '  [Fixed Order: Off]']));
 
-  //Fix SongSelection
-  ScreenSong.Interaction := 0;
-  ScreenSong.SelectNext;
-  ScreenSong.FixSelected;
+  ScreenSong.ResetRandomSongState;
+
+  // Fix SongSelection and keep the viewport aligned with the selected song.
+  TargetSongID := -1;
+  if (SongID <> -1) then
+  begin
+    for I := 0 to high(PlayLists[Index].Items) do
+    begin
+      if (PlayLists[Index].Items[I].SongID = SongID) then
+      begin
+        TargetSongID := SongID;
+        Break;
+      end;
+    end;
+  end;
+
+  if (TargetSongID = -1) and not Playlists[Index].FixedOrder and (CatSongs.VisibleSongs > 0) then
+  begin
+    RandomVisibleIndex := Random(CatSongs.VisibleSongs);
+    VisibleCount := 0;
+
+    for I := 0 to High(CatSongs.Song) do
+    begin
+      if CatSongs.Song[I].Visible then
+      begin
+        if (VisibleCount = RandomVisibleIndex) then
+        begin
+          TargetSongID := I;
+          Break;
+        end;
+        Inc(VisibleCount);
+      end;
+    end;
+  end;
+
+  if (TargetSongID = -1) then
+  begin
+    for I := 0 to high(PlayLists[Index].Items) do
+    begin
+      SongIdx := PlayLists[Index].Items[I].SongID;
+      if (SongIdx >= 0) and (SongIdx <= High(CatSongs.Song)) and CatSongs.Song[SongIdx].Visible then
+      begin
+        TargetSongID := SongIdx;
+        Break;
+      end;
+    end;
+  end;
+
+  if (TargetSongID = -1) then
+  begin
+    ScreenSong.Interaction := 0;
+    case TSongMenuMode(Ini.SongMenu) of
+      smChessboard:
+        ScreenSong.ChessboardMinLine := 0;
+      smList:
+        ScreenSong.ListMinLine := 0;
+    end;
+  end
+  else
+  begin
+    case TSongMenuMode(Ini.SongMenu) of
+      smRoulette,
+      smChessboard,
+      smList:
+        ScreenSong.SkipTo(CatSongs.VisibleIndex(TargetSongID), TargetSongID, CatSongs.VisibleSongs);
+    else
+      begin
+        ScreenSong.Interaction := TargetSongID;
+        ScreenSong.FixSelected;
+      end;
+    end;
+  end;
+
+  if (TargetSongID = -1) then
+    ScreenSong.FixSelected;
 
   //Play correct Music
   //ScreenSong.ChangeMusic;
+end;
 
+{**
+ * Unset Playlist for CatSongs
+ *}
+procedure TPlayListManager.UnsetPlayList;
+begin
+  CurPlayList := -1; // no playlist selected
 end;
 
 //----------
@@ -347,6 +503,7 @@ begin
     Playlists[Result+1] := Playlists[Result];
   end;
   Playlists[Result].Name := Name;
+  Playlists[Result].FixedOrder := False;
 
   // clear playlist items
   SetLength(Playlists[Result].Items, 0);
@@ -520,6 +677,101 @@ begin
       Break;
     end;
   end;
+end;
+
+function TPlayListManager.FindSongIndexByNames(const Artist, Title: UTF8String): Integer;
+var
+  I: Integer;
+begin
+  Result := -1;
+
+  for I := Low(CatSongs.Song) to High(CatSongs.Song) do
+  begin
+    if CatSongs.Song[I].Main then
+      Continue;
+
+    if (CatSongs.Song[I].Artist = Artist) and (CatSongs.Song[I].Title = Title) then
+    begin
+      Result := I;
+      Exit;
+    end;
+  end;
+end;
+
+procedure TPlayListManager.MoveSongIndex(const OldIndex, NewIndex: Integer);
+var
+  SongRef: TSong;
+  I: Integer;
+begin
+  if (OldIndex < 0) or (OldIndex > High(CatSongs.Song)) or
+     (NewIndex < 0) or (NewIndex > High(CatSongs.Song)) or
+     (OldIndex = NewIndex) then
+    Exit;
+
+  SongRef := CatSongs.Song[OldIndex];
+
+  if OldIndex > NewIndex then
+  begin
+    for I := OldIndex downto NewIndex + 1 do
+      CatSongs.Song[I] := CatSongs.Song[I-1];
+  end
+  else
+  begin
+    for I := OldIndex to NewIndex - 1 do
+      CatSongs.Song[I] := CatSongs.Song[I+1];
+  end;
+
+  CatSongs.Song[NewIndex] := SongRef;
+end;
+
+procedure TPlayListManager.ReindexAllPlaylists;
+var
+  P, I, NewIndex: Integer;
+begin
+  for P := 0 to High(Playlists) do
+  begin
+    for I := 0 to High(Playlists[P].Items) do
+    begin
+      NewIndex := FindSongIndexByNames(Playlists[P].Items[I].Artist,
+                                       Playlists[P].Items[I].Title);
+      if NewIndex = -1 then
+        Log.LogError('Could not reindex playlist entry: ' + Playlists[P].Items[I].Artist + ' - ' + Playlists[P].Items[I].Title);
+      Playlists[P].Items[I].SongID := NewIndex;
+    end;
+  end;
+end;
+
+procedure TPlayListManager.ApplyPlaylistOrder(Index: Cardinal);
+var
+  I, SongIdx: Integer;
+begin
+  if (Index > High(Playlists)) then
+    Exit;
+
+  if Length(Playlists[Index].Items) = 0 then
+    Exit;
+
+  for I := High(Playlists[Index].Items) downto 0 do
+  begin
+    SongIdx := FindSongIndexByNames(Playlists[Index].Items[I].Artist,
+                                    Playlists[Index].Items[I].Title);
+    if SongIdx <> -1 then
+      MoveSongIndex(SongIdx, 0);
+  end;
+
+  ReindexAllPlaylists;
+  SongOrderDirty := True;
+end;
+
+procedure TPlayListManager.RestoreSongOrder;
+begin
+  if not SongOrderDirty then
+    Exit;
+
+  CatSongs.Refresh;
+  ScreenSong.SyncCoversToSongs;
+  ReindexAllPlaylists;
+  SongOrderDirty := False;
 end;
 
 end.

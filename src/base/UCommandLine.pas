@@ -60,6 +60,7 @@ type
       Debug:      boolean;
       Benchmark:  boolean;
       NoLog:      boolean;
+      CheckSongs: boolean;
       ScreenMode: TScreenMode;
       Joypad:     boolean;
       Split:      TSplitMode;
@@ -72,6 +73,8 @@ type
       SongPath:   IPath;
       ConfigFile: IPath;
       ScoreFile:  IPath;
+
+      Renderer: string;
 
       // pseudo integer values
       property Language:      integer read GetLanguage;
@@ -89,6 +92,7 @@ var
 const
   cHelp            = 'help';
   cDebug           = 'debug';
+  cCheckSongs      = 'check-songs';
   cMediaInterfaces = 'showinterfaces';
 
 
@@ -128,6 +132,7 @@ begin
   writeln('  ----------------------------------------------------------');
   writeln('  '+ Fmt(cMediaInterfaces) +' : Show in-use media interfaces');
   writeln('  '+ Fmt(cDebug) +' : Display Debugging info');
+  writeln('  '+ Fmt(cCheckSongs) +' : Fully validate song files during startup');
   writeln;
 
   platform.halt;
@@ -141,6 +146,7 @@ begin
   Debug       := false;
   Benchmark   := False;
   NoLog       := false;
+  CheckSongs  := false;
   ScreenMode  := scmDefault;
   Joypad      := False;
   Split       := spmDefault;
@@ -185,6 +191,8 @@ begin
       // boolean triggers
       if (Command = 'debug') then
         Debug       := True
+      else if (Command = cCheckSongs) then
+        CheckSongs  := True
       else if (Command = 'benchmark') then
         Benchmark   := True
       else if (Command = 'nolog') then
@@ -285,6 +293,16 @@ begin
         begin
           // write value to string
           ScoreFile := Path(ParamStr(I + 1));
+        end;
+      end
+
+      else if (Command = 'renderer') then
+      begin
+        // check if there is another parameter to get the value from
+        if (PCount > I) then
+        begin
+          // write value to string
+          Renderer := (ParamStr(I + 1));
         end;
       end;
 

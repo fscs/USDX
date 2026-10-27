@@ -34,9 +34,10 @@ interface
 {$I switches.inc}
 
 uses
-  UTexture,
+  URenderer,
   ULog,
   UIni,
+  UPlayerLayout,
   SDL2;
 
 const
@@ -57,7 +58,7 @@ type
    Col      : array of TColour3f; // Colour(s) of particle
    Scale    : array of real;      // Scaling factors of particle layers
    Frame    : byte;     //act. Frame
-   Tex      : cardinal; //Tex num from Textur Manager
+   Tex      : TTexture; //Tex num from Textur Manager
    Live     : byte;     //How many Cycles before Kill
    RecIndex : integer;  //To which rectangle this particle belongs (only GoldenNote)
    StarType : TParticleType;  // GoldenNote | PerfectNote | NoteHitTwinkle | PerfectLineTwinkle
@@ -94,7 +95,7 @@ type
    Particle      : array of TParticle;
    LastTime      : cardinal;
    RecArray      : array of RectanglePositions;
-   TwinkleArray  : array[0..UIni.IMaxPlayerCount-1] of real; // store x-position of last twinkle for every player
+   TwinkleArray  : array of real; // store x-position of last twinkle for every player
    PerfNoteArray : array of PerfectNotePositions;
 
    FlareTex: TTexture;
@@ -128,9 +129,7 @@ implementation
 uses
   SysUtils,
   Math,
-  dglOpenGL,
   UCommon,
-  UDrawTexture,
   UGraphic,
   UNote,
   USkins,
@@ -162,7 +161,7 @@ begin
   case cStarType of
     GoldenNote:
         begin
-          Tex := Tex_Note_Star.TexNum;
+          Tex := Tex_Note_Star;
           W := 20;
           H := 20;
           SetLength(Scale,4);
@@ -188,7 +187,7 @@ begin
         end;
     PerfectNote:
         begin
-          Tex := Tex_Note_Perfect_Star.TexNum;
+          Tex := Tex_Note_Perfect_Star;
           W := 30;
           H := 30;
           SetLength(Col,1);
@@ -198,7 +197,7 @@ begin
         end;
     NoteHitTwinkle:
         begin
-          Tex := Tex_Note_Star.TexNum;
+          Tex := Tex_Note_Star;
           Alpha := (Live/16);  // linear fade-out
           W := 15;
           H := 15;
@@ -209,7 +208,7 @@ begin
         end;
     PerfectLineTwinkle:
         begin
-          Tex := Tex_Note_Star.TexNum;
+          Tex := Tex_Note_Star;
           W := RandomRange(10,20);
           H := W;
           SizeMod := (-cos((Frame+1)*5*2*pi/16)*0.5+1.1);
@@ -239,7 +238,7 @@ begin
         end;
     ColoredStar:
         begin
-          Tex := Tex_Note_Star.TexNum;
+          Tex := Tex_Note_Star;
           W := RandomRange(10,20);
           H := W;
           SizeMod := (-cos((Frame+1)*5*2*pi/16)*0.5+1.1);
@@ -255,7 +254,7 @@ begin
         end;
     Flare:
         begin
-          Tex := Tex_Note_Star.TexNum;
+          Tex := Tex_Note_Star;
           W := 7;
           H := 7;
           SizeMod := (-cos((Frame+1)*5*2*pi/16)*0.5+1.1);
@@ -285,7 +284,7 @@ begin
         end;
     else    // just some random default values
         begin
-          Tex := Tex_Note_Star.TexNum;
+          Tex := Tex_Note_Star;
           Alpha := 1;
           W := 20;
           H := 20;
@@ -356,37 +355,36 @@ end;
 procedure TParticle.Draw;
 var
   L: cardinal;
+  ParticleList: TParticleList;
 begin
   { if screens = 2 and playerplay <= 3 the 2nd screen shows the
     textures of screen 1 }
+
   if (Screens = 2) and (PlayersPlay <= 3) then
     ScreenAct := 1;
 
   if (ScreenAct = Screen) then
   begin
-    glEnable(GL_TEXTURE_2D);
-	  glBindTexture(GL_TEXTURE_2D, Tex);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_BLEND);
-	
+
     // this draws (multiple) texture(s) of our particle
+    SetLength(ParticleList, Length(Col));
     for L := 0 to High(Col) do
     begin
-      glColor4f(Col[L].r, Col[L].g, Col[L].b, Alpha);
-
-      glBegin(GL_QUADS);
-	      glTexCoord2f((1/16) * Frame, 0);          glVertex2f(X-W*Scale[L]*SizeMod, Y-H*Scale[L]*SizeMod);
-        glTexCoord2f((1/16) * Frame + (1/16), 0); glVertex2f(X-W*Scale[L]*SizeMod, Y+H*Scale[L]*SizeMod);
-        glTexCoord2f((1/16) * Frame + (1/16), 1); glVertex2f(X+W*Scale[L]*SizeMod, Y+H*Scale[L]*SizeMod);
-        glTexCoord2f((1/16) * Frame, 1);          glVertex2f(X+W*Scale[L]*SizeMod, Y-H*Scale[L]*SizeMod);
-      glEnd;
+      ParticleList[L].X := X-W*Scale[L]*SizeMod;
+      ParticleList[L].Y := Y-H*Scale[L]*SizeMod;
+      ParticleList[L].W := 2*W*Scale[L]*SizeMod;
+      ParticleList[L].H := 2*H*Scale[L]*SizeMod;
+      ParticleList[L].ColR := Col[L].r;
+      ParticleList[L].ColG := Col[L].g;
+      ParticleList[L].ColB := Col[L].b;
+      ParticleList[L].Alpha := Alpha;
+      ParticleList[L].TexX1 := (1/16) * Frame;
+      ParticleList[L].TexY1 := 1;
+      ParticleList[L].TexX2 := (1/16) * Frame + (1/16);
+      ParticleList[L].TexY2 := 0;
     end;
-	
-	  glDisable(GL_BLEND);
-    glDisable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glcolor4f(1,1,1,1);
   end;
+  Renderer.DrawParticles(Tex, ParticleList);
 end;
 // end of TParticle
 
@@ -397,8 +395,9 @@ var
   c: cardinal;
 begin
   inherited;
+  SetLength(TwinkleArray, UIni.PlayerCapacity);
   LastTime := SDL_GetTicks();
-  for c := 0 to 5 do
+  for c := 0 to High(TwinkleArray) do
   begin
     TwinkleArray[c] := 0;
   end;
@@ -515,7 +514,7 @@ begin
     Kill(0);
   SetLength(RecArray,0);  // remove GoldenRec positions
   SetLength(PerfNoteArray,0); // remove PerfectNote positions
-  for c := 0 to 5 do
+  for c := 0 to High(TwinkleArray) do
   begin
     TwinkleArray[c] := 0; // reset GoldenNoteHit memory
   end;
@@ -524,7 +523,6 @@ end;
 procedure TEffectManager.SentenceChange(CP: integer);
 var
   c: cardinal;
-  p: integer;
 begin
 
   c := 0;
@@ -538,7 +536,7 @@ begin
 
   SetLength(RecArray,0);  // remove GoldenRec positions
   SetLength(PerfNoteArray,0); // remove PerfectNote positions
-  for c := 0 to 5 do
+  for c := 0 to High(TwinkleArray) do
   begin
     if not CurrentSong.isDuet or ((c mod 2) = CP)  then
       TwinkleArray[c] := 0; // reset GoldenNoteHit memory
@@ -666,109 +664,42 @@ var
   P, I, Life: cardinal;
   Left, Right, Top, Bottom: cardinal;
   cScreen, Nstars: integer;
+  ScreenCount: integer;
+  LocalPlayerCount: integer;
+  LocalPlayerIndex: integer;
+  SlotRect: TPlayerSlotRect;
+const
+  NotesAreaLeft = 30;
+  NotesAreaTop = 130;
+  NotesAreaRight = 770;
+  NotesAreaBottom = 465;
 begin
-// calculation of coordinates done with hardcoded values like in UDraw.pas
-// might need to be adjusted if drawing of SingScreen is modified
-// coordinates may still be a bit weird and need adjustment
-  Left := 30;
-  Right := 770;
+  ScreenCount := Ini.Screens + 1;
 
   // spawn effect for every player with a perfect line
   for P := 0 to PlayersPlay-1 do
     if Player[P].LastSentencePerfect then
     begin
-      // 3 and 6 players in 1 screen
-      if (Ini.Screens = 0) then
-      begin
-        if (PlayersPlay = 4) then
-        begin
-          if (P <= 1) then
-          begin
-            Left := 30;
-            Right := 385;
-          end
-          else
-          begin
-            Left := 415;
-            Right := 770;
-          end;
-        end;
+      cScreen := GetPlayerScreen(P, PlayersPlay, ScreenCount);
+      LocalPlayerCount := GetScreenPlayerCount(PlayersPlay, ScreenCount, cScreen);
+      LocalPlayerIndex := GetPlayerIndexOnScreen(P, PlayersPlay, ScreenCount);
+      SlotRect := GetPlayerSlotRect(
+        LocalPlayerIndex,
+        LocalPlayerCount,
+        NotesAreaLeft,
+        NotesAreaTop,
+        NotesAreaRight - NotesAreaLeft,
+        NotesAreaBottom - NotesAreaTop
+      );
 
-        if (PlayersPlay = 6) then
-        begin
-          if (P <= 2) then
-          begin
-            Left := 30;
-            Right := 385;
-          end
-          else
-          begin
-            Left := 415;
-            Right := 770;
-          end;
-        end;
-      end;
-
-      // calculate area where notes of this player are drawn
-      case PlayersPlay of
-        1: begin
-             Bottom := Skin_P2_NotesB+10;
-             Top := Bottom-105;
-             cScreen := 1;
-           end;
-        2,4: begin
-               case P of
-                 0,2: begin
-                        Bottom := Skin_P1_NotesB+10;
-                        Top := Bottom-105;
-                      end;
-                 else begin
-                        Bottom := Skin_P2_NotesB+10;
-                        Top := Bottom-105;
-                      end;
-               end;
-               case P of
-                 0,1: cScreen := 1;
-                 else
-                 begin
-                   if (Ini.Screens = 1) then
-                     cScreen := 2
-                   else
-                     cScreen := 1;
-                 end;
-               end;
-             end;
-        3,6: begin
-               case P of
-                 0,3: begin
-                        Top := 130;
-                        Bottom := Top+85;
-                      end;
-                 1,4: begin
-                        Top := 255;
-                        Bottom := Top+85;
-                      end;
-                 2,5: begin
-                        Top := 380;
-                        Bottom := Top+85;
-                      end;
-               end;
-               case P of
-                 0,1,2: cScreen := 1;
-                 else
-                 begin
-                   if (Ini.Screens = 1) then
-                     cScreen := 2
-                   else
-                     cScreen := 1;
-                 end;
-               end;
-             end;
-      end;
+      Left := SlotRect.X;
+      Right := SlotRect.X + SlotRect.W;
+      Top := SlotRect.Y;
+      Bottom := SlotRect.Y + SlotRect.H;
 
       // spawn Sparkling Stars inside calculated coordinates
       Nstars := 80;
-      if (Ini.Screens = 0) and (PlayersPlay > 3) then
+      if LocalPlayerCount > 3 then
         Nstars := 40;
 
       for I := 0 to Nstars do
@@ -776,12 +707,8 @@ begin
         Life := RandomRange(8,16);
         Spawn(RandomRange(Left,Right), RandomRange(Top,Bottom), cScreen, Life, 16-Life, -1, PerfectLineTwinkle, P);
 
-        //spawn also on second screen if the amount of players is <=3
-        if (Screens = 2) and (PlayersPlay <= 3) then
-           Spawn(RandomRange(Left,Right), RandomRange(Top,Bottom), 2, Life, 16-Life, -1, PerfectLineTwinkle, P);
       end;
     end;
 end;
 
 end.
-

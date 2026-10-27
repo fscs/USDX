@@ -48,7 +48,6 @@ type
       procedure OnShow; override;
       function ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean; override;
       procedure SetInteraction(Num: integer); override;
-      procedure SetAnimationProgress(Progress: real); override;
   end;
 
 const
@@ -66,13 +65,8 @@ uses
   SysUtils;
 
 function TScreenEdit.ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean;
-var
-  SDL_ModState: word;
 begin
   Result := true;
-
-  SDL_ModState := SDL_GetModState and (KMOD_LSHIFT + KMOD_RSHIFT +
-    KMOD_LCTRL + KMOD_RCTRL + KMOD_LALT + KMOD_RALT);
 
   if (PressedDown) then
   begin // Key Down
@@ -156,12 +150,6 @@ begin
 
   // long description not used atm // IMPROVE: Theme
   //Text[TextDescriptionLong].Text := Theme.Edit.DescriptionLong[Interaction];
-end;
-
-procedure TScreenEdit.SetAnimationProgress(Progress: real);
-begin
-  Statics[0].Texture.ScaleW := Progress;
-  Statics[0].Texture.ScaleH := Progress;
 end;
 
 end.

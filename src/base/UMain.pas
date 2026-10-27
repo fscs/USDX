@@ -69,7 +69,6 @@ implementation
 
 uses
   math,
-  dglOpenGL,
   UCommandLine,
   UCommon,
   UConfig,
@@ -89,15 +88,16 @@ uses
   URecord,
   UBeatTimer,
   UPlatform,
+  URenderer,
   USkins,
   UThemes,
   UParty,
   UPartyTournament,
   ULuaCore,
-  ULuaGl,
+  ULuaRenderer,
   ULuaLog,
   ULuaTexture,
-  ULuaTextGL,
+  ULuaText,
   ULuaParty,
   ULuaScreenSing,
   UTime,
@@ -107,7 +107,6 @@ uses
 procedure Main;
 var
   WindowTitle: string;
-  BadPlayer: integer;
 begin
   {$IFNDEF Debug}
   try
@@ -227,8 +226,8 @@ begin
     PartyTournament := TPartyTournament.Create;
 
     LuaCore.RegisterModule('Log', ULuaLog_Lib_f);
-    LuaCore.RegisterModule('Gl', ULuaGl_Lib_f);
-    LuaCore.RegisterModule('TextGl', ULuaTextGl_Lib_f);
+    LuaCore.RegisterModule('Renderer', ULuaRenderer_Lib_f);
+    LuaCore.RegisterModule('Text', ULuaText_Lib_f);
     LuaCore.RegisterModule('Party', ULuaParty_Lib_f);
     LuaCore.RegisterModule('ScreenSing', ULuaScreenSing_Lib_f);
 
@@ -243,24 +242,6 @@ begin
       * Start background music
       *}
     SoundLib.StartBgMusic;
-
-    // check microphone settings, goto record options if they are corrupt
-    BadPlayer := AudioInputProcessor.ValidateSettings;
-    if (BadPlayer <> 0) then
-    begin
-      ScreenPopupError.ShowPopup(
-          Format(Language.Translate('ERROR_PLAYER_DEVICE_ASSIGNMENT'),
-          [BadPlayer]));
-      Display.CurrentScreen^.FadeTo( @ScreenOptionsRecord );
-    end;
-    BadPlayer := AudioInputProcessor.CheckPlayersConfig(1);
-    if (BadPlayer <> 0) then
-    begin
-      ScreenPopupError.ShowPopup(
-          Format(Language.Translate('ERROR_PLAYER_NO_DEVICE_ASSIGNMENT'),
-          [BadPlayer]));
-      Display.CurrentScreen^.FadeTo( @ScreenOptionsRecord );
-    end;
 
     //------------------------------
     // Start Mainloop
@@ -325,6 +306,7 @@ var
   Done:             boolean;
   Report: string;
   I,J: Integer;
+  BackTraceFunction: TBacktraceStrFunc;
 begin
   Max_FPS := Ini.MaxFramerateGet;
   // need to explicitly stop this because it appears to be started by default
@@ -342,7 +324,7 @@ begin
 
       // display
       Done := not Display.Draw;
-      SwapBuffers;
+      Renderer.SwapBuffers;
 
       // FPS limiter
       TicksCurrent := SDL_GetTicks;
@@ -366,9 +348,10 @@ begin
             Report := Report + 'Exception class: ' + E.ClassName + LineEnding +
             'Message: ' + E.Message + LineEnding;
           end;
-          Report := Report + BackTraceStrFunc(ExceptAddr);
+          BackTraceFunction := Platform.GetBackTraceFunction();
+          Report := Report + BackTraceFunction(ExceptAddr);
           for I := 0 to ExceptFrameCount - 1 do
-            Report := Report + LineEnding + BackTraceStrFunc(ExceptFrames[I]);
+            Report := Report + LineEnding + BackTraceFunction(ExceptFrames[I]);
           ShowMessage(Report);
           done := true;
         end
@@ -403,7 +386,6 @@ var
   SimEvent:  TSDL_event;
   KeyCharUnicode: UCS4Char;
   SimKey: LongWord;
-  s1: UTF8String;
   mouseDown: boolean;
   mouseBtn:  integer;
   mouseX, mouseY: PInt;
@@ -492,6 +474,8 @@ begin
               KeepGoing := ScreenPopupSendScore.ParseMouse(mouseBtn, mouseDown, Event.button.x, Event.button.y)
             else if (ScreenPopupScoreDownload <> nil) and (ScreenPopupScoreDownload.Visible) then
               KeepGoing := ScreenPopupScoreDownload.ParseMouse(mouseBtn, mouseDown, Event.button.x, Event.button.y)
+            else if (ScreenPopupHelp <> nil) and (ScreenPopupHelp.Visible) then
+              KeepGoing := ScreenPopupHelp.ParseMouse(mouseBtn, mouseDown, Event.button.x, Event.button.y)
             else
             begin
               KeepGoing := Display.ParseMouse(mouseBtn, mouseDown, Event.button.x, Event.button.y);
@@ -522,12 +506,6 @@ begin
           //if (Event.key.keysym.unicode in [1 .. 26]) then
           //  Event.key.keysym.unicode := Ord('A') + Event.key.keysym.unicode - 1;
 
-          // toggle in-game console if allowed
-          if boolean(Ini.Debug) and ((Event.key.keysym.sym = SInt32('~')) or (Event.key.keysym.sym = SDLK_CARET)) then
-          begin
-            Display.ToggleConsole;
-          end;
-
           if Event.key.keysym.sym = SDLK_RETURN then
           begin
             if (SDL_GetModState and (KMOD_LSHIFT + KMOD_RSHIFT + KMOD_LCTRL + KMOD_RCTRL + KMOD_LALT  + KMOD_RALT) = KMOD_LALT) then
@@ -535,6 +513,7 @@ begin
               if SwitchVideoMode(Mode_Fullscreen) = Mode_Fullscreen then Ini.FullScreen := 1
               else Ini.FullScreen := 0;
               Ini.Save();
+              Display.SetCursor;
 
               Break;
             end;
@@ -602,9 +581,8 @@ begin
                   Ini.FullScreen := 0;
                 end;
                 Ini.Save();
+                Display.SetCursor;
               end;
-
-              //Display.SetCursor;
 
               //glViewPort(0, 0, ScreenW, ScreenH);
             end;

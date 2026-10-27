@@ -147,9 +147,21 @@ FPC_TARGET=${FPC_PROCESSOR}-${FPC_PLATFORM}
 # Check for x86_64 on darwin
 if test x$FPC_PLATFORM = xdarwin; then
   if test x`uname -m` = xx86_64; then
-    PFLAGS+=" -Px86_64 "
+    PFLAGS_EXTRA+=" -Px86_64 "
   fi
 fi
+
+# The official Windows x86_64 FPC package uses the generic "fpc" driver
+# as a 32-bit cross-compiler targeting x86_64.
+case "$host_os" in
+  mingw*|msys*|cygwin*)
+    case "$host_cpu" in
+      x86_64|amd64)
+        PFLAGS_EXTRA+=" -Px86_64 "
+        ;;
+    esac
+    ;;
+esac
 
 AC_SUBST(FPC_PLATFORM)
 AC_SUBST(FPC_PROCESSOR)
@@ -297,6 +309,12 @@ AC_DEFUN([AC_PROG_FPC_CHECK],
 
     # remove test file
     rm -f conftest*
+
+    # These files are left when the test fails on Mac
+    if [[ x$FPC_PLATFORM == xdarwin ]]; then
+        rm -f link*.res
+        rm -f ppaslink.sh
+    fi
 ])
 
 # SYNOPSIS

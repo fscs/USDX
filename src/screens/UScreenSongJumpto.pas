@@ -81,8 +81,8 @@ uses
   ULog,
   UMain,
   UParty,
+  URenderer,
   UScreenSong,
-  UTexture,
   UUnicodeUtils;
 
 function TScreenSongJumpto.ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean;
@@ -241,6 +241,7 @@ end;
 
 function TScreenSongJumpto.Draw: boolean;
 begin
+  Renderer.ClearFrameBuffer(CLEAR_DEPTH);
   Result := inherited Draw;
 end;
 
@@ -280,12 +281,12 @@ begin
   fVisSongs := Count;
 
   //Fix SongSelection
-  if (TSongMenuMode(Ini.SongMenu) in [smRoulette, smCarousel, smSlide, smSlotMachine]) then
+  if (TSongMenuMode(Ini.SongMenu) = smRoulette) then
   begin
     ScreenSong.Interaction := high(CatSongs.Song);
   end;
 
-  if (TSongMenuMode(Ini.SongMenu) in [smChessboard, smList, smMosaic]) then
+  if (TSongMenuMode(Ini.SongMenu) in [smChessboard, smList]) then
   begin
     ScreenSong.Interaction := 0;
     ScreenSong.ChessboardMinLine := 0;

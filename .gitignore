@@ -16,6 +16,7 @@ Thumbs.db
 
 # other editors
 /.idea/
+/.vscode/
 
 # intermediates
 /configure
@@ -30,7 +31,7 @@ aclocal.m4
 /CMakeFiles/
 link*.res
 ppaslink.sh
-/UltraStarDeluxe.app/*
+/UltraStar Deluxe.app/*
 /dists/autogen/config.guess
 /dists/autogen/config.sub
 /dists/autogen/install-sh
@@ -43,6 +44,7 @@ ppaslink.sh
 /src/config-darwin.inc
 /src/config-linux.inc
 /src/config-win32.inc
+/src/config-win.inc
 /src/paths.inc
 /src/ultrastardx-*.lps
 /src/ultrastardx.res
@@ -64,6 +66,7 @@ ppaslink.sh
 /game/ultrastardx
 
 # created by dldlls.py on Windows
+/usdx-dlls-x86_64.zip
 /usdx-dlls-i686.zip
 /game/*.dll
 /game/*.debug

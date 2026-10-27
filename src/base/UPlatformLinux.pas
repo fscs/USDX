@@ -52,6 +52,8 @@ type
       function GetLogPath        : IPath; override;
       function GetGameSharedPath : IPath; override;
       function GetGameUserPath   : IPath; override;
+      function GetModifiableAssetPaths: IInterfaceList; override;
+      function GetWebsitePaths: IInterfaceList; override;
   end;
 
 implementation
@@ -92,6 +94,16 @@ begin
   LocalDir := GetExecutionDir();
   LanguageDir := LocalDir.Append('languages');
   UseLocalDirs := LanguageDir.IsDirectory and not LocalDir.IsReadonly;
+
+  if not UseLocalDirs then begin
+    try
+      // try to cd to the ExecutionDir -- this makes the stacktraces work when started from PATH
+      chdir(LocalDir.ToNative());
+    except
+      // this log statement is too early to be logged to the Error.log file, it'll only show up in stdout
+      // Log.LogWarn('Cannot chdir to '+LocalDir.ToNative()+', stacktraces might be broken', 'TPlatformLinux.DetectLocalExecution');
+    end;
+  end;
 end;
 
 function TPlatformLinux.GetLogPath: IPath;
@@ -148,6 +160,27 @@ begin
   // GetUserDir() is another function that returns a user path.
   // It uses env-var HOME or a fallback to a temp-dir.
   //Result := GetUserDir();
+end;
+
+function TPlatformLinux.GetModifiableAssetPaths: IInterfaceList;
+begin
+  Result := TInterfaceList.Create;
+  if UseLocalDirs then
+    Result.Add(GetExecutionDir())
+  else
+  begin
+    Result.Add(GetHomeDir().Append('.ultrastardx'));
+    Result.Add(Path(INSTALL_DATADIR));
+  end;
+end;
+
+function TPlatformLinux.GetWebsitePaths: IInterfaceList;
+begin
+  Result := TInterfaceList.Create;
+  if UseLocalDirs then
+    Result.Add(GetExecutionDir())
+  else
+    Result.Add(GetHomeDir().Append('.ultrastardx'));
 end;
 
 end.

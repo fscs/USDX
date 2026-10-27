@@ -60,7 +60,6 @@ type
       constructor Create; override;
       function ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean; override;
       procedure OnShow; override;
-      procedure SetAnimationProgress(Progress: real); override;
 
       procedure InitJukebox;
   end;
@@ -75,7 +74,6 @@ uses
   UHelp,
   UMain,
   UIni,
-  UTexture,
   ULanguage,
   ULog,
   UParty,
@@ -257,7 +255,7 @@ begin
   end;
 
   Playlist2 := 0;
-  UpdateSelectSlideOptions(Theme.PartyOptions.SelectPlayList2, SelectPlayList2, IPlaylist2, Playlist2);
+  UpdateSelectSlideOptions(SelectPlayList2, IPlaylist2, Playlist2);
 end;
 
 procedure TScreenJukeboxPlaylist.OnShow;
@@ -340,12 +338,6 @@ begin
     FadeTo(@ScreenSong);
   end;
 
-end;
-
-procedure TScreenJukeboxPlaylist.SetAnimationProgress(Progress: real);
-begin
-  //for I := 0 to 6 do
-  //  SelectS[I].Texture.ScaleW := Progress;
 end;
 
 end.

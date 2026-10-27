@@ -181,7 +181,6 @@ uses
   UMain,
   UParty,
   UScreenJukebox,
-  UTexture,
   UUnicodeUtils;
 
 function TScreenJukeboxOptions.ParseMouse(MouseButton: integer; BtnDown: boolean; X, Y: integer): boolean;
@@ -660,11 +659,11 @@ begin
     IHeight[0] := '---';
 
     I := 0;
-    UpdateSelectSlideOptions(Theme.Jukebox.SongOptionsVideoHeightSlide, 2, IHeight, I);
+    UpdateSelectSlideOptions(2, IHeight, I);
   end
   else
   begin
-    UpdateSelectSlideOptions(Theme.Jukebox.SongOptionsVideoHeightSlide, 2, HeightVideo, HeightVideoIndex);
+    UpdateSelectSlideOptions(2, HeightVideo, HeightVideoIndex);
   end;
 
 end;
@@ -775,26 +774,26 @@ begin
   begin
 
     if (SelectsS[LineSelect].SelectedOption = 0) then
-      UpdateSelectSlideOptions(Theme.OptionsJukebox.SelectColor, LineColorSelect, ISingLineOColorTranslated, Ini.CurrentJukeboxSingLineOutlineColor);
+      UpdateSelectSlideOptions(LineColorSelect, ISingLineOColorTranslated, Ini.CurrentJukeboxSingLineOutlineColor);
 
     if (SelectsS[LineSelect].SelectedOption = 1) then
-      UpdateSelectSlideOptions(Theme.OptionsJukebox.SelectColor, LineColorSelect, IActualLineOColorTranslated, Ini.CurrentJukeboxActualLineOutlineColor);
+      UpdateSelectSlideOptions(LineColorSelect, IActualLineOColorTranslated, Ini.CurrentJukeboxActualLineOutlineColor);
 
     if (SelectsS[LineSelect].SelectedOption = 2) then
-      UpdateSelectSlideOptions(Theme.OptionsJukebox.SelectColor, LineColorSelect, INextLineOColorTranslated, Ini.CurrentJukeboxNextLineOutlineColor);
+      UpdateSelectSlideOptions(LineColorSelect, INextLineOColorTranslated, Ini.CurrentJukeboxNextLineOutlineColor);
 
   end
   else
   begin
 
     if (SelectsS[LineSelect].SelectedOption = 0) then
-      UpdateSelectSlideOptions(Theme.OptionsJukebox.SelectColor, LineColorSelect, ISingLineColorTranslated, JukeboxOptionsSingLineColor);
+      UpdateSelectSlideOptions(LineColorSelect, ISingLineColorTranslated, JukeboxOptionsSingLineColor);
 
     if (SelectsS[LineSelect].SelectedOption = 1) then
-      UpdateSelectSlideOptions(Theme.OptionsJukebox.SelectColor, LineColorSelect, IActualLineColorTranslated, JukeboxOptionsActualLineColor);
+      UpdateSelectSlideOptions(LineColorSelect, IActualLineColorTranslated, JukeboxOptionsActualLineColor);
 
     if (SelectsS[LineSelect].SelectedOption = 2) then
-      UpdateSelectSlideOptions(Theme.OptionsJukebox.SelectColor, LineColorSelect, INextLineColorTranslated, JukeboxOptionsNextLineColor);
+      UpdateSelectSlideOptions(LineColorSelect, INextLineColorTranslated, JukeboxOptionsNextLineColor);
 
   end;
 
@@ -832,7 +831,7 @@ begin
     Ini.JukeboxProperty := 0;
   end;
 
-  UpdateSelectSlideOptions(Theme.OptionsJukebox.SelectProperty, PropertySelect, IProperty, Ini.JukeboxProperty);
+  UpdateSelectSlideOptions(PropertySelect, IProperty, Ini.JukeboxProperty);
 end;
 
 procedure TScreenJukeboxOptions.ChangeOtherColor;
@@ -859,8 +858,6 @@ begin
 end;
 
 procedure TScreenJukeboxOptions.ChangeOtherOColor;
-var
-  Line: integer;
 begin
 
   case SelectsS[LineSelect].SelectedOption of
@@ -1036,7 +1033,6 @@ end;
 procedure TScreenJukeboxOptions.LoadSongOptions(Opts: TSongOptions);
 var
   Color: TRGB;
-  Alpha: real;
 begin
 
   ScreenJukebox.AspectCorrection := TAspectCorrection(Opts.VideoRatioAspect);

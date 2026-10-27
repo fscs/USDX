@@ -40,7 +40,8 @@ uses
   UCommon,
   ULog,
   UIni,
-  UTexture,
+  URenderer,
+  UPlayerLayout,
   UPath;
 type
   TBackgroundType =
@@ -228,6 +229,8 @@ type
     SBGW:   integer;
 
     TextSize: integer;
+    ArrowW: integer;
+    ArrowH: integer;
 
     showArrows:boolean;
     oneItemOnly:boolean;
@@ -288,6 +291,46 @@ type
     Oscilloscope: TThemePosition;
   end;
 
+  TThemeNamePlayerSelectLayout = record
+    Area: TPlayerSlotRect;
+    MinPlayerCount: integer;
+    MaxColumns: integer;
+    RowHeightDivisor: real;
+    MaxScaleSmall: real;
+    MaxScaleMedium: real;
+    MaxScaleDefault: real;
+  end;
+
+  TThemeSingPlayerWidgetLayout = record
+    MinFrameW: integer;
+    MinFrameH: integer;
+    MinScoreW: integer;
+    MinScoreH: integer;
+    HeaderOffsetLeft: integer;
+    HeaderOffsetTopBase: integer;
+    HeaderOffsetTopPerExtraRow: integer;
+    MinAvatarInsetX: integer;
+    MinAvatarInsetY: integer;
+    NameGapBaseX: integer;
+    NameGapMinX: integer;
+    NamePaddingBaseX: integer;
+    NamePaddingMinX: integer;
+    NamePaddingBaseY: integer;
+    NamePaddingMinY: integer;
+    NameMinW: integer;
+    NameMinH: integer;
+    NameMinSize: integer;
+    ScoreWidthFraction: real;
+    OscilloscopeGapBaseY: integer;
+    OscilloscopeGapMinY: integer;
+    OscilloscopeMinW: integer;
+    OscilloscopeMinH: integer;
+    PopupYOffsetSolo: integer;
+    PopupYOffsetDuet: integer;
+    PopupFontSizeSolo: integer;
+    PopupFontSizeDuet: integer;
+  end;
+
   TThemeLoading = class(TThemeBasic)
     StaticAnimation:  TThemeStatic;
     TextLoading:      TThemeText;
@@ -320,20 +363,18 @@ type
 
     PlayerAvatar:        TThemeButton;
 
-    PlayerSelect:        array [0..UIni.IMaxPlayerCount-1] of TThemeStatic;
-    PlayerSelectText:    array [0..UIni.IMaxPlayerCount-1] of TThemeText;
-    PlayerSelectAvatar:  array [0..UIni.IMaxPlayerCount-1] of TThemeStaticRectangle;
+    PlayerSelectTemplateFrame:   TThemeStatic;
+    PlayerSelectTemplateText:    TThemeText;
+    PlayerSelectTemplateAvatar:  TThemeStaticRectangle;
+    PlayerSelectLayout:          TThemeNamePlayerSelectLayout;
+    PlayerSelect:        array of TThemeStatic;
+    PlayerSelectText:    array of TThemeText;
+    PlayerSelectAvatar:  array of TThemeStaticRectangle;
     PlayerSelectCurrent: TThemeButton;
-    
+
     SelectPlayersCount:  TThemeSelectSlide;
     SelectPlayerColor:   TThemeSelectSlide;
     SelectPlayerLevel:   TThemeSelectSlide;
-  end;
-
-  TThemeLevel = class(TThemeBasic)
-    ButtonEasy:       TThemeButton;
-    ButtonMedium:     TThemeButton;
-    ButtonHard:       TThemeButton;
   end;
 
   TThemeSong = class(TThemeBasic)
@@ -452,28 +493,9 @@ type
     StaticTeam3Joker4: TThemeStatic;
     StaticTeam3Joker5: TThemeStatic;
 
-    TextPartyTime    : TThemeText;
-
     Static2PlayersDuetSingerP1: TThemeStatic;
-    Static2PlayersDuetSingerP2: TThemeStatic;
-
-    Static3PlayersDuetSingerP1: TThemeStatic;
-    Static3PlayersDuetSingerP2: TThemeStatic;
-    Static3PlayersDuetSingerP3: TThemeStatic;
-
-    Static4PlayersDuetSingerP3: TThemeStatic;
-    Static4PlayersDuetSingerP4: TThemeStatic;
-
-    Static6PlayersDuetSingerP4: TThemeStatic;
-    Static6PlayersDuetSingerP5: TThemeStatic;
-    Static6PlayersDuetSingerP6: TThemeStatic;
-
     Text2PlayersDuetSingerP1:   TThemeText;
-    Text2PlayersDuetSingerP2:   TThemeText;
-
-    Text3PlayersDuetSingerP1:   TThemeText;
-    Text3PlayersDuetSingerP2:   TThemeText;
-    Text3PlayersDuetSingerP3:   TThemeText;
+    DuetSingerArea:             TThemePosition;
   end;
 
   TThemeSing = class(TThemeBasic)
@@ -487,44 +509,9 @@ type
     TextTimeText:          TThemeText;
     //eoa TimeBar mod
 
-    Solo1PP1: TThemeSingPlayer;
-
-    Solo2PP1: TThemeSingPlayer;
-    Solo2PP2: TThemeSingPlayer;
-
-    Solo3PP1: TThemeSingPlayer;
-    Solo3PP2: TThemeSingPlayer;
-    Solo3PP3: TThemeSingPlayer;
-
-    Duet3PP1: TThemeSingPlayer;
-    Duet3PP2: TThemeSingPlayer;
-    Duet3PP3: TThemeSingPlayer;
-
-    //game in 4/6 player modi in 1 Screen
-    Solo4PP1: TThemeSingPlayer;
-    Solo4PP2: TThemeSingPlayer;
-    Solo4PP3: TThemeSingPlayer;
-    Solo4PP4: TThemeSingPlayer;
-
-    Solo6PP1: TThemeSingPlayer;
-    Solo6PP2: TThemeSingPlayer;
-    Solo6PP3: TThemeSingPlayer;
-    Solo6PP4: TThemeSingPlayer;
-    Solo6PP5: TThemeSingPlayer;
-    Solo6PP6: TThemeSingPlayer;
-
-    // duet 4/6 players in one screen
-    Duet4PP1: TThemeSingPlayer;
-    Duet4PP2: TThemeSingPlayer;
-    Duet4PP3: TThemeSingPlayer;
-    Duet4PP4: TThemeSingPlayer;
-
-    Duet6PP1: TThemeSingPlayer;
-    Duet6PP2: TThemeSingPlayer;
-    Duet6PP3: TThemeSingPlayer;
-    Duet6PP4: TThemeSingPlayer;
-    Duet6PP5: TThemeSingPlayer;
-    Duet6PP6: TThemeSingPlayer;
+    PlayerTemplate:          TThemeSingPlayer;
+    PlayerLayout:            TSingPlayerLayoutConfig;
+    PlayerWidgetLayout:      TThemeSingPlayerWidgetLayout;
 
     StaticSongName:   TThemeStatic;
     TextSongName:     TThemeText;
@@ -622,50 +609,65 @@ type
     TextTitle:        TThemeText;
 
     TextArtistTitle:  TThemeText;
+    PlayerLayoutArea: TPlayerSlotRect;
+    PlayerLayoutExtraColsBias: integer;
 
-    PlayerStatic:     array[1..UIni.IMaxPlayerCount] of AThemeStatic;
-    PlayerTexts:      array[1..UIni.IMaxPlayerCount] of AThemeText;
+    PlayerStatic:     array of AThemeStatic;
+    PlayerTexts:      array of AThemeText;
 
-    TextName:         array[1..UIni.IMaxPlayerCount] of TThemeText;
-    TextScore:        array[1..UIni.IMaxPlayerCount] of TThemeText;
+    TextName:         array of TThemeText;
+    TextScore:        array of TThemeText;
 
-    AvatarStatic:     array[1..UIni.IMaxPlayerCount] of TThemeStatic;
+    AvatarStatic:     array of TThemeStatic;
 
-    TextNotes:            array[1..UIni.IMaxPlayerCount] of TThemeText;
-    TextNotesScore:       array[1..UIni.IMaxPlayerCount] of TThemeText;
-    TextLineBonus:        array[1..UIni.IMaxPlayerCount] of TThemeText;
-    TextLineBonusScore:   array[1..UIni.IMaxPlayerCount] of TThemeText;
-    TextGoldenNotes:      array[1..UIni.IMaxPlayerCount] of TThemeText;
-    TextGoldenNotesScore: array[1..UIni.IMaxPlayerCount] of TThemeText;
-    TextTotal:            array[1..UIni.IMaxPlayerCount] of TThemeText;
-    TextTotalScore:       array[1..UIni.IMaxPlayerCount] of TThemeText;
+    TextNotes:            array of TThemeText;
+    TextNotesScore:       array of TThemeText;
+    TextLineBonus:        array of TThemeText;
+    TextLineBonusScore:   array of TThemeText;
+    TextGoldenNotes:      array of TThemeText;
+    TextGoldenNotesScore: array of TThemeText;
+    TextTotal:            array of TThemeText;
+    TextTotalScore:       array of TThemeText;
 
-    StaticBoxLightest:    array[1..UIni.IMaxPlayerCount] of TThemeStatic;
-    StaticBoxLight:       array[1..UIni.IMaxPlayerCount] of TThemeStatic;
-    StaticBoxDark:        array[1..UIni.IMaxPlayerCount] of TThemeStatic;
+    StaticBoxLightest:    array of TThemeStatic;
+    StaticBoxLight:       array of TThemeStatic;
+    StaticBoxDark:        array of TThemeStatic;
 
-    StaticRatings:        array[1..UIni.IMaxPlayerCount] of TThemeStatic;
+    StaticRatings:        array of TThemeStatic;
 
-    StaticBackLevel:        array[1..UIni.IMaxPlayerCount] of TThemeStatic;
-    StaticBackLevelRound:   array[1..UIni.IMaxPlayerCount] of TThemeStatic;
-    StaticLevel:            array[1..UIni.IMaxPlayerCount] of TThemeStatic;
-    StaticLevelRound:       array[1..UIni.IMaxPlayerCount] of TThemeStatic;
+    StaticBackLevel:        array of TThemeStatic;
+    StaticBackLevelRound:   array of TThemeStatic;
+    StaticLevel:            array of TThemeStatic;
+    StaticLevelRound:       array of TThemeStatic;
 
-    ButtonSend:  array[1..UIni.IMaxPlayerCount] of TThemeButton;
+    ButtonSend:  array[1..3] of TThemeButton;
 
     StaticNavigate:   TThemeStatic;
     TextNavigate:     TThemeText;
   end;
 
-  TThemeTop5 = class(TThemeBasic)
-    TextLevel:        TThemeText;
-    TextArtistTitle:  TThemeText;
+  TThemeHighScoreList = record
+    BottomY: integer;
+    MinTextSize: integer;
+    DefaultEntries: integer;
+    MaxEntries: integer;
+  end;
 
-    StaticNumber:     AThemeStatic;
-    TextNumber:       AThemeText;
-    TextName:         AThemeText;
-    TextScore:        AThemeText;
-    TextDate:         AThemeText;
+  TThemeHighScores = class(TThemeBasic)
+    TextTitle:            TThemeText;
+    TextWhereAmI:         TThemeText;
+    TextArtistTitle:      TThemeText;
+    TextDifficultyLabel:  TThemeText;
+    TextDifficulty:       TThemeText;
+    TextContinue:         TThemeText;
+    TextNavigate:         TThemeText;
+
+    List:                 TThemeHighScoreList;
+    RowNumberStatic:      TThemeStatic;
+    RowNumberText:        TThemeText;
+    RowNameText:          TThemeText;
+    RowScoreText:         TThemeText;
+    RowDateText:          TThemeText;
   end;
 
   TThemeOptions = class(TThemeBasic)
@@ -686,137 +688,28 @@ type
     Description:          array[0..11] of UTF8String;
   end;
 
-  TThemeOptionsGame = class(TThemeBasic)
-    SelectLanguage:     TThemeSelectSlide;
-    SelectSongMenu:     TThemeSelectSlide;
-    SelectSorting:      TThemeSelectSlide;
-    SelectTabs:         TThemeSelectSlide;
-    SelectShowScores:   TThemeSelectSlide;
-    SelectDebug:        TThemeSelectSlide;
-    SelectAVDelay:      TThemeSelectSlide;
-    SelectMicDelay:     TThemeSelectSlide;
-    ButtonExit:         TThemeButton;
+  TThemeScrollBar = record
+    HSpacing: integer;
+    W: integer;
+    ColR, ColG, ColB: real; // Default color
+    HColR, HColG, HColB: real; // Color when hovered with mouse
+    CColR, CColG, CColB: real; // Color when clicked and scrolling
   end;
 
-  TThemeOptionsGraphics = class(TThemeBasic)
-    SelectFullscreen:       TThemeSelectSlide;
-    SelectResolution:       TThemeSelectSlide;
-    SelectDepth:            TThemeSelectSlide;
-    SelectVisualizer:       TThemeSelectSlide;
-    SelectOscilloscope:     TThemeSelectSlide;
-    SelectLineBonus:        TThemeSelectSlide;
-    SelectMovieSize:        TThemeSelectSlide;
-    ButtonExit:             TThemeButton;
+  TThemeOptionsSub = class(TThemeBasic)
+    Area:               TThemePosition;
+    WidgetVSpacing:     integer;
+    ScrollBar:          TThemeScrollBar;
+    SelectS:            TThemeSelectSlide;
+    Button:             TThemeButton;
+    ButtonBack:         TThemeButton;
+    ButtonBackVSpacing: integer;
+    TextDescription:    TThemeText;
+    TextWhereAmI:       TThemeText;
+    LegendStatic:       array of TThemeStatic;
+    LegendText:         array of TThemeText;
   end;
 
-  TThemeOptionsSound = class(TThemeBasic)
-    SelectBackgroundMusic:       TThemeSelectSlide;
-    SelectClickAssist:           TThemeSelectSlide;
-    SelectBeatClick:             TThemeSelectSlide;
-    SelectSlidePreviewVolume:    TThemeSelectSlide;
-    SelectSlidePreviewFading:    TThemeSelectSlide;
-    SelectSlideVoicePassthrough: TThemeSelectSlide;
-    SelectSlideMusicAutoGain:    TThemeSelectSlide;
-    ButtonExit:                  TThemeButton;
-  end;
-
-  TThemeOptionsInput = class(TThemeBasic)
-    SelectMouse:        TThemeSelectSlide;
-    SelectJoypad:       TThemeSelectSlide;
-    ButtonExit:         TThemeButton;
-  end;
-
-  TThemeOptionsLyrics = class(TThemeBasic)
-    SelectLyricsFont:   TThemeSelectSlide;
-    SelectLyricsStyle:  TThemeSelectSlide;
-    SelectLyricsEffect: TThemeSelectSlide;
-//    SelectSolmization:  TThemeSelectSlide;
-    SelectNoteLines:    TThemeSelectSlide;
-    ButtonExit:         TThemeButton;
-    UpperX, UpperW, UpperY, UpperH,
-    LowerX, LowerW, LowerY, LowerH  : integer;
-  end;
-
-  TThemeOptionsThemes = class(TThemeBasic)
-    SelectTheme:        TThemeSelectSlide;
-    SelectSkin:         TThemeSelectSlide;
-    SelectColor:        TThemeSelectSlide;
-    ButtonExit:         TThemeButton;
-  end;
-
-  TThemeOptionsRecord = class(TThemeBasic)
-    SelectSlideCard:       TThemeSelectSlide;
-    SelectSlideInput:      TThemeSelectSlide;
-    SelectChannel:         TThemeSelectSlide;
-    SelectAssignee:        TThemeSelectSlide;
-    SelectThreshold:       TThemeSelectSlide;
-    SelectMicBoost:        TThemeSelectSlide;
-    ButtonExit:            TThemeButton;
-  end;
-
-  TThemeOptionsAdvanced = class(TThemeBasic)
-    SelectLoadAnimation:  TThemeSelectSlide;
-    SelectEffectSing:     TThemeSelectSlide;
-    SelectScreenFade:     TThemeSelectSlide;
-    SelectLineBonus:      TThemeSelectSlide;
-    SelectAskbeforeDel:   TThemeSelectSlide;
-    SelectOnSongClick:    TThemeSelectSlide;
-    SelectPartyPopup:     TThemeSelectSlide;
-    SelectSingScores:     TThemeSelectSlide;
-    SelectTopScores:      TThemeSelectSlide;
-    ButtonExit:           TThemeButton;
-  end;
-
-  TThemeOptionsNetwork = class(TThemeBasic)
-    SelectWebsite:        TThemeSelectSlide;
-    SelectUsername:       TThemeSelectSlide;
-    SelectSendName:       TThemeSelectSlide;
-    SelectAutoMode:       TThemeSelectSlide;
-    SelectAutoPlayer:     TThemeSelectSlide;
-    SelectAutoScoreEasy:   TThemeSelectSlide;
-    SelectAutoScoreMedium: TThemeSelectSlide;
-    SelectAutoScoreHard:   TThemeSelectSlide;
-    TextInsertUser:       TThemeText;
-    ButtonInsert:         TThemeButton;
-    ButtonExit:           TThemeButton;
-  end;
-
-  TThemeOptionsWebcam = class(TThemeBasic)
-    SelectWebcam:         TThemeSelectSlide;
-    SelectResolution:     TThemeSelectSlide;
-    SelectFPS:            TThemeSelectSlide;
-    SelectFlip:           TThemeSelectSlide;
-    SelectBrightness:     TThemeSelectSlide;
-    SelectSaturation:     TThemeSelectSlide;
-    SelectHue:            TThemeSelectSlide;
-    SelectEffect:         TThemeSelectSlide;
-
-    ButtonPreVisualization: TThemeButton;
-    ButtonExit:           TThemeButton;
-  end;
-
-  TThemeOptionsJukebox = class(TThemeBasic)
-    SelectLyricsFont:   TThemeSelectSlide;
-    SelectLyricsStyle:  TThemeSelectSlide;
-    SelectLyricsEffect: TThemeSelectSlide;
-    SelectLyricsAlpha:  TThemeSelectSlide;
-    SelectLine:         TThemeSelectSlide;
-    SelectProperty:     TThemeSelectSlide;
-    SelectColor:        TThemeSelectSlide;
-    SelectR:            TThemeSelectSlide;
-    SelectG:            TThemeSelectSlide;
-    SelectB:            TThemeSelectSlide;
-    TexR:               TThemeStatic;
-    TexG:               TThemeStatic;
-    TexB:               TThemeStatic;
-    TexColor:           TThemeStatic;
-    PointerR:           TThemeStatic;
-    PointerG:           TThemeStatic;
-    PointerB:           TThemeStatic;
-    ButtonExit:         TThemeButton;
-    UpperX, UpperW, UpperY, UpperH,
-    LowerX, LowerW, LowerY, LowerH  : integer;
-  end;
 
   TThemeEdit = class(TThemeBasic)
     ButtonConvert:        TThemeButton;
@@ -925,6 +818,10 @@ type
   //Help-Popup
   TThemeHelp = class(TThemeBasic)
     Button1:    TThemeButton;
+    SelectVolAudio:    TThemeSelectSlide;
+    SelectVolVocals:   TThemeSelectSlide;
+    SelectVolSfx:      TThemeSelectSlide;
+    SelectVolPreview:  TThemeSelectSlide;
   end;
 
   TThemeInsertUser = class(TThemeBasic)
@@ -977,7 +874,7 @@ type
     Songsfound:       UTF8String;
     NoSongsfound:     UTF8String;
     CatText:          UTF8String;
-    IType:            array [0..7] of UTF8String;
+    IType:            array [0..8] of UTF8String;
   end;
 
   //Party Screens
@@ -1214,28 +1111,40 @@ type
 
   TThemeEntry = record
     Name: string;
+    BaseTheme: string;
     Filename: IPath;
     DefaultSkin: integer;
     Creator: string;
   end;
 
+  TThemeSection = record
+    Name: string;
+    IniFile: TMemIniFile;
+  end;
+  TThemeSectionlist = array of TThemeSection;
+
   TTheme = class
   private
-    {$IFDEF THEMESAVE}
-    ThemeIni:         TIniFile;
-    {$ELSE}
     ThemeIni:         TMemIniFile;
-    {$ENDIF}
+    BaseThemeIni:     TMemIniFile;
 
     LastThemeBasic:   TThemeBasic;
     procedure CreateThemeObjects();
+    procedure OpenFile(ThemeNum: integer);
+    procedure CloseFile;
     procedure LoadHeader(FileName: IPath);
+    function ResolveThemeFile(SectionName: string): TMemIniFile;
+    function SectionExists(const Name: string; var Enabled: boolean): boolean;
+    function GetSectionList(const Name: string): TThemeSectionList;
+    function ReadString(const Sections: TThemeSectionList; const Key: string; const DefaultValue: string): string;
+    function ReadInteger(const Sections: TThemeSectionList; const Key: string; DefaultValue: integer): integer;
+    function ReadBool(const Sections: TThemeSectionList; const Key: string; DefaultValue: boolean): boolean;
+    function ReadFloat(const Sections: TThemeSectionList; const Key: string; DefaultValue: real): real;
   public
     Themes:           array of TThemeEntry;
     Loading:          TThemeLoading;
     Main:             TThemeMain;
     Name:             TThemeName;
-    Level:            TThemeLevel;
     Song:             TThemeSong;
     Sing:             TThemeSing;
     LyricBar:         TThemeLyricBar;
@@ -1245,19 +1154,10 @@ type
     Jukebox:          TThemeJukebox;
     JukeboxPlaylist:  TThemeJukeboxPlaylist;
     Score:            TThemeScore;
-    Top5:             TThemeTop5;
+    HighScores:       TThemeHighScores;
     Options:          TThemeOptions;
-    OptionsGame:      TThemeOptionsGame;
-    OptionsGraphics:  TThemeOptionsGraphics;
-    OptionsSound:     TThemeOptionsSound;
-    OptionsInput:     TThemeOptionsInput;
-    OptionsLyrics:    TThemeOptionsLyrics;
-    OptionsThemes:    TThemeOptionsThemes;
-    OptionsRecord:    TThemeOptionsRecord;
-    OptionsAdvanced:  TThemeOptionsAdvanced;
-    OptionsNetwork:   TThemeOptionsNetwork;
-    OptionsWebcam:    TThemeOptionsWebcam;
-    OptionsJukebox:   TThemeOptionsJukebox;
+    OptionsSub:       TThemeOptionsSub;
+
     //edit
     Edit:             TThemeEdit;
     EditConvert:      TThemeEditConvert;
@@ -1298,18 +1198,24 @@ type
     Playlist:         TThemePlaylist;
 
     ILevel: array[0..2] of UTF8String;
-    IMode:  array[0..3] of UTF8String;
+    IMode:  array[0..2] of UTF8String;
+    OptionsNetworkLegendStatic: array of TThemeStatic;
+    OptionsNetworkLegendText: array of TThemeText;
 
     constructor Create;
 
     procedure LoadList;
+    function ThemeExists(Name: string): boolean;
 
     function LoadTheme(ThemeNum: integer; sColor: integer): boolean; // Load some theme settings from file
 
     procedure LoadColors;
 
     procedure ThemeLoadBasic(Theme: TThemeBasic; const Name: string);
+    procedure ThemeLoadOptionsSub;
     procedure ThemeLoadBackground(var ThemeBackground: TThemeBackground; const Name: string);
+    procedure ThemeLoadHighScores;
+    procedure ThemeLoadHighScoreList(var List: TThemeHighScoreList; const Name: string);
     procedure ThemeLoadText(var ThemeText: TThemeText; const Name: string);
     procedure ThemeLoadTexts(var ThemeText: AThemeText; const Name: string);
 
@@ -1328,32 +1234,19 @@ type
     procedure ThemeLoadSelectSlide(var ThemeSelectS: TThemeSelectSlide; const Name: string);
     procedure ThemeLoadEqualizer(var ThemeEqualizer: TThemeEqualizer; const Name: string);
     procedure ThemeLoadPosition(var ThemePosition: TThemePosition; const Name: string);
+    procedure ThemeLoadLyricBar(var LyricBar: TThemeLyricBar; const Name: string);
 
-    procedure ThemeSave(const FileName: string);
-    procedure ThemeSaveBasic(Theme: TThemeBasic; const Name: string);
-    procedure ThemeSaveBackground(ThemeBackground: TThemeBackground; const Name: string);
-    procedure ThemeSavePosition(position: TThemePosition; const Name: string);
-    procedure ThemeSaveStatic(static: TThemeStaticColorRectangle; const Name: string); overload;
-    procedure ThemeSaveStatic(ThemeStatic: TThemeStatic; const Name: string); overload;
-    procedure ThemeSaveStatics(ThemeStatic: AThemeStatic; const Name: string);
-    procedure ThemeSaveText(ThemeText: TThemeText; const Name: string);
-    procedure ThemeSaveTexts(ThemeText: AThemeText; const Name: string);
-    procedure ThemeSaveButton(ThemeButton: TThemeButton; const Name: string);
-
+    procedure ThemeScoreLoadData;
     procedure ThemeScoreLoad;
     procedure ThemePartyLoad;
     procedure ThemeSongLoad;
+    procedure ThemeSongReload;
   end;
 
   TColor = record
     Name:   string;
     RGB:    TRGB;
   end;
-
-procedure glColorRGB(Color: TRGB);  overload;
-procedure glColorRGB(Color: TRGB; Alpha: real);  overload;
-procedure glColorRGB(Color: TRGBA); overload;
-procedure glColorRGB(Color: TRGBA; Alpha: real); overload;
 
 function ColorExists(Name: string): integer;
 procedure LoadColor(var R, G, B: real; ColorName: string);
@@ -1366,6 +1259,18 @@ function GetLyricColor(Color: integer): TRGB;
 function GetLyricGrayColor(Color: integer): TRGB;
 function GetLyricOutlineColor(Color: integer): TRGB;
 function GetLyricBarColor(Color: integer): TRGB;
+
+function GetThemePlayerBounds(const ThemePlayer: TThemeSingPlayer): TPlayerSlotRect;
+function GetThemePlayerScoreLayoutBounds(const BaseBounds, LayoutArea: TPlayerSlotRect;
+  PlayerCountOnScreen: integer): TPlayerSlotRect;
+function GetNamePlayerSelectBaseBounds(const NameTheme: TThemeName): TPlayerSlotRect;
+function GetNamePlayerSelectLayoutBounds(const BaseBounds: TPlayerSlotRect;
+  const Layout: TThemeNamePlayerSelectLayout): TPlayerSlotRect;
+function GetNamePlayerSelectSlotRect(PlayerIndex, PlayerCount: integer;
+  const BaseBounds, LayoutBounds: TPlayerSlotRect; const Layout: TThemeNamePlayerSelectLayout): TPlayerSlotRect;
+function GetNamePlayerSelectMaxScale(PlayerCount: integer; const Layout: TThemeNamePlayerSelectLayout): real;
+function GetSingHeaderTopOffset(const Layout: TThemeSingPlayerWidgetLayout;
+  RowCount: integer; Scale: real): integer;
 
 function GetPlayerColor(Color: integer): TRGB;
 function GetPlayerLightColor(Color: integer): TRGB;
@@ -1381,36 +1286,361 @@ var
 implementation
 
 uses
+  UGraphic,
   ULanguage,
   USkins,
   UPathUtils,
   UFileSystem,
-  TextGL,
-  dglOpenGL,
+  UText,
   math,
   StrUtils;
 
-//-----------
-//Helper procs to use TRGB in Opengl ...maybe this should be somewhere else
-//-----------
-procedure glColorRGB(Color: TRGB);  overload;
+const
+  MAX_INHERITANCE = 10;
+
+type
+  TScoreSlotThemeTemplate = record
+    PlayerStatic: AThemeStatic;
+    PlayerTexts: AThemeText;
+    TextName: TThemeText;
+    TextScore: TThemeText;
+    AvatarStatic: TThemeStatic;
+    TextNotes: TThemeText;
+    TextNotesScore: TThemeText;
+    TextLineBonus: TThemeText;
+    TextLineBonusScore: TThemeText;
+    TextGoldenNotes: TThemeText;
+    TextGoldenNotesScore: TThemeText;
+    TextTotal: TThemeText;
+    TextTotalScore: TThemeText;
+    StaticBoxLightest: TThemeStatic;
+    StaticBoxLight: TThemeStatic;
+    StaticBoxDark: TThemeStatic;
+    StaticRatings: TThemeStatic;
+    StaticBackLevel: TThemeStatic;
+    StaticBackLevelRound: TThemeStatic;
+    StaticLevel: TThemeStatic;
+    StaticLevelRound: TThemeStatic;
+  end;
+
+  TNamePlayerSelectTemplate = record
+    Frame: TThemeStatic;
+    Text: TThemeText;
+    Avatar: TThemeStaticRectangle;
+  end;
+
+procedure ExpandScoreBounds(var Bounds: TPlayerSlotRect; X, Y, W, H: integer; var Initialized: boolean);
+var
+  MaxX: integer;
+  MaxY: integer;
 begin
-  glColor3f(Color.R, Color.G, Color.B);
+  MaxX := X + W;
+  MaxY := Y + H;
+
+  if not Initialized then
+  begin
+    Bounds.X := X;
+    Bounds.Y := Y;
+    Bounds.W := W;
+    Bounds.H := H;
+    Initialized := true;
+    Exit;
+  end;
+
+  Bounds.W := Max(Bounds.X + Bounds.W, MaxX) - Min(Bounds.X, X);
+  Bounds.H := Max(Bounds.Y + Bounds.H, MaxY) - Min(Bounds.Y, Y);
+  Bounds.X := Min(Bounds.X, X);
+  Bounds.Y := Min(Bounds.Y, Y);
 end;
 
-procedure glColorRGB(Color: TRGB; Alpha: real);  overload;
+function GetScoreTemplateBounds(const Template: TScoreSlotThemeTemplate): TPlayerSlotRect;
+var
+  Initialized: boolean;
+  I: integer;
 begin
-  glColor4f(Color.R, Color.G, Color.B, Alpha);
+  Initialized := false;
+
+  ExpandScoreBounds(Result, Template.TextName.X, Template.TextName.Y, Template.TextName.W, Template.TextName.H, Initialized);
+  ExpandScoreBounds(Result, Template.TextScore.X, Template.TextScore.Y, Template.TextScore.W, Template.TextScore.H, Initialized);
+  ExpandScoreBounds(Result, Template.AvatarStatic.X, Template.AvatarStatic.Y, Template.AvatarStatic.W, Template.AvatarStatic.H, Initialized);
+  ExpandScoreBounds(Result, Template.TextNotes.X, Template.TextNotes.Y, Template.TextNotes.W, Template.TextNotes.H, Initialized);
+  ExpandScoreBounds(Result, Template.TextNotesScore.X, Template.TextNotesScore.Y, Template.TextNotesScore.W, Template.TextNotesScore.H, Initialized);
+  ExpandScoreBounds(Result, Template.TextLineBonus.X, Template.TextLineBonus.Y, Template.TextLineBonus.W, Template.TextLineBonus.H, Initialized);
+  ExpandScoreBounds(Result, Template.TextLineBonusScore.X, Template.TextLineBonusScore.Y, Template.TextLineBonusScore.W, Template.TextLineBonusScore.H, Initialized);
+  ExpandScoreBounds(Result, Template.TextGoldenNotes.X, Template.TextGoldenNotes.Y, Template.TextGoldenNotes.W, Template.TextGoldenNotes.H, Initialized);
+  ExpandScoreBounds(Result, Template.TextGoldenNotesScore.X, Template.TextGoldenNotesScore.Y, Template.TextGoldenNotesScore.W, Template.TextGoldenNotesScore.H, Initialized);
+  ExpandScoreBounds(Result, Template.TextTotal.X, Template.TextTotal.Y, Template.TextTotal.W, Template.TextTotal.H, Initialized);
+  ExpandScoreBounds(Result, Template.TextTotalScore.X, Template.TextTotalScore.Y, Template.TextTotalScore.W, Template.TextTotalScore.H, Initialized);
+  ExpandScoreBounds(Result, Template.StaticBoxLightest.X, Template.StaticBoxLightest.Y, Template.StaticBoxLightest.W, Template.StaticBoxLightest.H, Initialized);
+  ExpandScoreBounds(Result, Template.StaticBoxLight.X, Template.StaticBoxLight.Y, Template.StaticBoxLight.W, Template.StaticBoxLight.H, Initialized);
+  ExpandScoreBounds(Result, Template.StaticBoxDark.X, Template.StaticBoxDark.Y, Template.StaticBoxDark.W, Template.StaticBoxDark.H, Initialized);
+  ExpandScoreBounds(Result, Template.StaticRatings.X, Template.StaticRatings.Y, Template.StaticRatings.W, Template.StaticRatings.H, Initialized);
+  ExpandScoreBounds(Result, Template.StaticBackLevel.X, Template.StaticBackLevel.Y, Template.StaticBackLevel.W, Template.StaticBackLevel.H, Initialized);
+  ExpandScoreBounds(Result, Template.StaticBackLevelRound.X, Template.StaticBackLevelRound.Y, Template.StaticBackLevelRound.W, Template.StaticBackLevelRound.H, Initialized);
+  ExpandScoreBounds(Result, Template.StaticLevel.X, Template.StaticLevel.Y, Template.StaticLevel.W, Template.StaticLevel.H, Initialized);
+  ExpandScoreBounds(Result, Template.StaticLevelRound.X, Template.StaticLevelRound.Y, Template.StaticLevelRound.W, Template.StaticLevelRound.H, Initialized);
+
+  for I := 0 to High(Template.PlayerStatic) do
+    ExpandScoreBounds(Result, Template.PlayerStatic[I].X, Template.PlayerStatic[I].Y, Template.PlayerStatic[I].W, Template.PlayerStatic[I].H, Initialized);
+
+  for I := 0 to High(Template.PlayerTexts) do
+    ExpandScoreBounds(Result, Template.PlayerTexts[I].X, Template.PlayerTexts[I].Y, Template.PlayerTexts[I].W, Template.PlayerTexts[I].H, Initialized);
 end;
 
-procedure glColorRGB(Color: TRGBA); overload;
+function GetThemePlayerBounds(const ThemePlayer: TThemeSingPlayer): TPlayerSlotRect;
+var
+  MinX: integer;
+  MinY: integer;
+  MaxX: integer;
+  MaxY: integer;
 begin
-  glColor4f(Color.R, Color.G, Color.B, Color.A);
+  MinX := Min(ThemePlayer.ScoreBackground.X, ThemePlayer.SingBar.X);
+  MinY := Min(ThemePlayer.ScoreBackground.Y, ThemePlayer.Score.Y);
+  MaxX := Max(ThemePlayer.ScoreBackground.X + ThemePlayer.ScoreBackground.W,
+              ThemePlayer.SingBar.X + ThemePlayer.SingBar.W);
+  MaxY := Max(ThemePlayer.ScoreBackground.Y + ThemePlayer.ScoreBackground.H,
+              ThemePlayer.SingBar.Y + ThemePlayer.SingBar.H);
+
+  Result.X := MinX;
+  Result.Y := MinY;
+  Result.W := MaxX - MinX;
+  Result.H := MaxY - MinY;
 end;
 
-procedure glColorRGB(Color: TRGBA; Alpha: real); overload;
+function GetNamePlayerSelectTemplateBounds(const Template: TNamePlayerSelectTemplate): TPlayerSlotRect;
+var
+  Initialized: boolean;
 begin
-  glColor4f(Color.R, Color.G, Color.B, Min(Color.A, Alpha));
+  Initialized := false;
+  ExpandScoreBounds(Result, Template.Frame.X, Template.Frame.Y, Template.Frame.W, Template.Frame.H, Initialized);
+  ExpandScoreBounds(Result, Template.Avatar.X, Template.Avatar.Y, Template.Avatar.W, Template.Avatar.H, Initialized);
+  ExpandScoreBounds(Result, Template.Text.X, Template.Text.Y, Max(Template.Frame.W, 1), Max(Template.Text.H, 1), Initialized);
+end;
+
+function GetNamePlayerSelectBaseBounds(const NameTheme: TThemeName): TPlayerSlotRect;
+var
+  Initialized: boolean;
+begin
+  Initialized := false;
+  ExpandScoreBounds(Result, NameTheme.PlayerSelectTemplateFrame.X, NameTheme.PlayerSelectTemplateFrame.Y,
+    NameTheme.PlayerSelectTemplateFrame.W, NameTheme.PlayerSelectTemplateFrame.H, Initialized);
+  ExpandScoreBounds(Result, NameTheme.PlayerSelectTemplateAvatar.X, NameTheme.PlayerSelectTemplateAvatar.Y,
+    NameTheme.PlayerSelectTemplateAvatar.W, NameTheme.PlayerSelectTemplateAvatar.H, Initialized);
+  ExpandScoreBounds(Result, NameTheme.PlayerSelectTemplateText.X, NameTheme.PlayerSelectTemplateText.Y,
+    Max(NameTheme.PlayerSelectTemplateFrame.W, 1), Max(NameTheme.PlayerSelectTemplateText.H, 1), Initialized);
+end;
+
+function GetNamePlayerSelectLayoutBounds(const BaseBounds: TPlayerSlotRect;
+  const Layout: TThemeNamePlayerSelectLayout): TPlayerSlotRect;
+begin
+  Result := Layout.Area;
+
+  if BaseBounds.W > 0 then
+    Result.W := Max(Result.W, BaseBounds.W);
+  if BaseBounds.H > 0 then
+    Result.H := Max(Result.H, BaseBounds.H);
+end;
+
+function GetNamePlayerSelectSlotRect(PlayerIndex, PlayerCount: integer;
+  const BaseBounds, LayoutBounds: TPlayerSlotRect; const Layout: TThemeNamePlayerSelectLayout): TPlayerSlotRect;
+var
+  LayoutPlayerCount: integer;
+  Cols: integer;
+  Rows: integer;
+  ColIndex: integer;
+  RowIndex: integer;
+  SlotWidth: integer;
+  SlotHeight: integer;
+begin
+  Result := BaseBounds;
+
+  if (PlayerIndex < 0) or (PlayerIndex >= PlayerCount) then
+    Exit;
+
+  LayoutPlayerCount := Max(PlayerCount, Layout.MinPlayerCount);
+  Cols := Min(Layout.MaxColumns, LayoutPlayerCount);
+  Rows := (LayoutPlayerCount + Cols - 1) div Cols;
+  if (Cols <= 0) or (Rows <= 0) then
+    Exit;
+
+  ColIndex := PlayerIndex mod Cols;
+  RowIndex := PlayerIndex div Cols;
+
+  SlotWidth := LayoutBounds.W div Cols;
+  SlotHeight := LayoutBounds.H div Rows;
+
+  Result.X := LayoutBounds.X + ColIndex * SlotWidth;
+  Result.Y := LayoutBounds.Y + Round(RowIndex * (SlotHeight / Max(Layout.RowHeightDivisor, 1.0)));
+
+  if ColIndex = Cols - 1 then
+    Result.W := LayoutBounds.X + LayoutBounds.W - Result.X
+  else
+    Result.W := SlotWidth;
+
+  // Row spacing may be compressed, but the last row must keep the same scale.
+  if RowIndex = Rows - 1 then
+    Result.H := LayoutBounds.H - RowIndex * SlotHeight
+  else
+    Result.H := SlotHeight;
+end;
+
+function GetNamePlayerSelectMaxScale(PlayerCount: integer; const Layout: TThemeNamePlayerSelectLayout): real;
+begin
+  if PlayerCount <= 2 then
+    Exit(Layout.MaxScaleSmall);
+  if PlayerCount <= 4 then
+    Exit(Layout.MaxScaleMedium);
+  Result := Layout.MaxScaleDefault;
+end;
+
+function GetSingHeaderTopOffset(const Layout: TThemeSingPlayerWidgetLayout;
+  RowCount: integer; Scale: real): integer;
+var
+  BaseOffset: integer;
+begin
+  BaseOffset := Layout.HeaderOffsetTopBase +
+    Max(0, RowCount - 1) * Layout.HeaderOffsetTopPerExtraRow;
+  Result := Round(BaseOffset * Scale);
+end;
+
+function TransformNamePlayerSelectStatic(const Source: TThemeStatic; const SourceBounds, SlotRect: TPlayerSlotRect): TThemeStatic;
+var
+  FittedRect: TPlayerSlotRect;
+begin
+  Result := Source;
+  FittedRect := GetFittedSlotRect(SourceBounds, SlotRect, 1.0);
+  Result.X := ScaleCoordToSlot(Source.X, SourceBounds.X, SourceBounds.W, FittedRect.X, FittedRect.W);
+  Result.Y := ScaleCoordToSlot(Source.Y, SourceBounds.Y, SourceBounds.H, FittedRect.Y, FittedRect.H);
+  Result.W := ScaleLengthToSlot(Source.W, SourceBounds.W, FittedRect.W);
+  Result.H := ScaleLengthToSlot(Source.H, SourceBounds.H, FittedRect.H);
+end;
+
+function TransformNamePlayerSelectText(const Source: TThemeText; const SourceBounds, SlotRect: TPlayerSlotRect): TThemeText;
+var
+  FittedRect: TPlayerSlotRect;
+begin
+  Result := Source;
+  FittedRect := GetFittedSlotRect(SourceBounds, SlotRect, 1.0);
+  Result.X := ScaleCoordToSlot(Source.X, SourceBounds.X, SourceBounds.W, FittedRect.X, FittedRect.W);
+  Result.Y := ScaleCoordToSlot(Source.Y, SourceBounds.Y, SourceBounds.H, FittedRect.Y, FittedRect.H);
+  Result.Size := Max(8, ScaleLengthToSlot(Source.Size, SourceBounds.H, FittedRect.H));
+end;
+
+function TransformNamePlayerSelectAvatar(const Source: TThemeStaticRectangle; const SourceBounds, SlotRect: TPlayerSlotRect): TThemeStaticRectangle;
+var
+  FittedRect: TPlayerSlotRect;
+begin
+  Result := Source;
+  FittedRect := GetFittedSlotRect(SourceBounds, SlotRect, 1.0);
+  Result.X := ScaleCoordToSlot(Source.X, SourceBounds.X, SourceBounds.W, FittedRect.X, FittedRect.W);
+  Result.Y := ScaleCoordToSlot(Source.Y, SourceBounds.Y, SourceBounds.H, FittedRect.Y, FittedRect.H);
+  Result.W := ScaleLengthToSlot(Source.W, SourceBounds.W, FittedRect.W);
+  Result.H := ScaleLengthToSlot(Source.H, SourceBounds.H, FittedRect.H);
+end;
+
+procedure AssignNamePlayerSelectSlot(var NameTheme: TThemeName; const Template: TNamePlayerSelectTemplate;
+  const SourceBounds, LayoutBounds: TPlayerSlotRect; PlayerIndex: integer);
+var
+  SlotRect: TPlayerSlotRect;
+begin
+  SlotRect := GetNamePlayerSelectSlotRect(PlayerIndex, UIni.PlayerCapacity, SourceBounds, LayoutBounds, NameTheme.PlayerSelectLayout);
+  NameTheme.PlayerSelect[PlayerIndex] := TransformNamePlayerSelectStatic(Template.Frame, SourceBounds, SlotRect);
+  NameTheme.PlayerSelectText[PlayerIndex] := TransformNamePlayerSelectText(Template.Text, SourceBounds, SlotRect);
+  NameTheme.PlayerSelectAvatar[PlayerIndex] := TransformNamePlayerSelectAvatar(Template.Avatar, SourceBounds, SlotRect);
+end;
+
+function GetThemePlayerScoreLayoutBounds(const BaseBounds, LayoutArea: TPlayerSlotRect;
+  PlayerCountOnScreen: integer): TPlayerSlotRect;
+var
+  Grid: TPlayerGrid;
+begin
+  Grid := GetScorePlayerGrid(PlayerCountOnScreen, LayoutArea.W, LayoutArea.H,
+    Theme.Score.PlayerLayoutExtraColsBias);
+  Result := GetScaledGridLayoutBounds(BaseBounds, LayoutArea, Grid);
+end;
+
+function TransformScoreStatic(const Source: TThemeStatic; const SourceBounds, SlotRect: TPlayerSlotRect): TThemeStatic;
+var
+  Scale: real;
+begin
+  Result := Source;
+  Result.X := ScaleCoordToSlot(Source.X, SourceBounds.X, SourceBounds.W, SlotRect.X, SlotRect.W);
+  Result.Y := ScaleCoordToSlot(Source.Y, SourceBounds.Y, SourceBounds.H, SlotRect.Y, SlotRect.H);
+  Result.W := ScaleLengthToSlot(Source.W, SourceBounds.W, SlotRect.W);
+  Result.H := ScaleLengthToSlot(Source.H, SourceBounds.H, SlotRect.H);
+  // Preserve 1px theme separators as hairlines instead of scaling them into bands.
+  if Source.W = 1 then
+    Result.W := 1;
+  if Source.H = 1 then
+    Result.H := 1;
+  Scale := Min(SlotRect.W / Max(1.0, SourceBounds.W), SlotRect.H / Max(1.0, SourceBounds.H));
+  Result.Reflectionspacing := Source.Reflectionspacing * Scale;
+end;
+
+function TransformScoreText(const Source: TThemeText; const SourceBounds, SlotRect: TPlayerSlotRect): TThemeText;
+var
+  Scale: real;
+begin
+  Result := Source;
+  Result.X := ScaleCoordToSlot(Source.X, SourceBounds.X, SourceBounds.W, SlotRect.X, SlotRect.W);
+  Result.Y := ScaleCoordToSlot(Source.Y, SourceBounds.Y, SourceBounds.H, SlotRect.Y, SlotRect.H);
+  Result.W := ScaleLengthToSlot(Source.W, SourceBounds.W, SlotRect.W);
+  Result.H := ScaleLengthToSlot(Source.H, SourceBounds.H, SlotRect.H);
+
+  Scale := Min(SlotRect.W / Max(1.0, SourceBounds.W), SlotRect.H / Max(1.0, SourceBounds.H));
+  Result.Size := Max(1, Round(Source.Size * Scale));
+  Result.ReflectionSpacing := Source.ReflectionSpacing * Scale;
+end;
+
+function TransformScoreStatics(const Source: AThemeStatic; const SourceBounds, SlotRect: TPlayerSlotRect): AThemeStatic;
+var
+  I: integer;
+begin
+  SetLength(Result, Length(Source));
+  for I := 0 to High(Source) do
+    Result[I] := TransformScoreStatic(Source[I], SourceBounds, SlotRect);
+end;
+
+function TransformScoreTexts(const Source: AThemeText; const SourceBounds, SlotRect: TPlayerSlotRect): AThemeText;
+var
+  I: integer;
+begin
+  SetLength(Result, Length(Source));
+  for I := 0 to High(Source) do
+    Result[I] := TransformScoreText(Source[I], SourceBounds, SlotRect);
+end;
+
+procedure AssignScoreThemeSlot(var ScoreTheme: TThemeScore; const Template: TScoreSlotThemeTemplate;
+  const SourceBounds, LayoutBounds: TPlayerSlotRect; LayoutPlayerCount, LayoutPlayerIndex, TargetSlotIndex: integer);
+var
+  SlotRect: TPlayerSlotRect;
+  Grid: TPlayerGrid;
+begin
+  Grid := GetScorePlayerGrid(LayoutPlayerCount, LayoutBounds.W, LayoutBounds.H,
+    ScoreTheme.PlayerLayoutExtraColsBias);
+  SlotRect := GetPlayerSlotRect(LayoutPlayerIndex, Grid, LayoutBounds.X, LayoutBounds.Y, LayoutBounds.W, LayoutBounds.H);
+
+  ScoreTheme.PlayerStatic[TargetSlotIndex] := TransformScoreStatics(Template.PlayerStatic, SourceBounds, SlotRect);
+  ScoreTheme.PlayerTexts[TargetSlotIndex] := TransformScoreTexts(Template.PlayerTexts, SourceBounds, SlotRect);
+  ScoreTheme.TextName[TargetSlotIndex] := TransformScoreText(Template.TextName, SourceBounds, SlotRect);
+  ScoreTheme.TextScore[TargetSlotIndex] := TransformScoreText(Template.TextScore, SourceBounds, SlotRect);
+  ScoreTheme.AvatarStatic[TargetSlotIndex] := TransformScoreStatic(Template.AvatarStatic, SourceBounds, SlotRect);
+  ScoreTheme.TextNotes[TargetSlotIndex] := TransformScoreText(Template.TextNotes, SourceBounds, SlotRect);
+  ScoreTheme.TextNotesScore[TargetSlotIndex] := TransformScoreText(Template.TextNotesScore, SourceBounds, SlotRect);
+  ScoreTheme.TextLineBonus[TargetSlotIndex] := TransformScoreText(Template.TextLineBonus, SourceBounds, SlotRect);
+  ScoreTheme.TextLineBonusScore[TargetSlotIndex] := TransformScoreText(Template.TextLineBonusScore, SourceBounds, SlotRect);
+  ScoreTheme.TextGoldenNotes[TargetSlotIndex] := TransformScoreText(Template.TextGoldenNotes, SourceBounds, SlotRect);
+  ScoreTheme.TextGoldenNotesScore[TargetSlotIndex] := TransformScoreText(Template.TextGoldenNotesScore, SourceBounds, SlotRect);
+  ScoreTheme.TextTotal[TargetSlotIndex] := TransformScoreText(Template.TextTotal, SourceBounds, SlotRect);
+  ScoreTheme.TextTotalScore[TargetSlotIndex] := TransformScoreText(Template.TextTotalScore, SourceBounds, SlotRect);
+  ScoreTheme.StaticBoxLightest[TargetSlotIndex] := TransformScoreStatic(Template.StaticBoxLightest, SourceBounds, SlotRect);
+  ScoreTheme.StaticBoxLight[TargetSlotIndex] := TransformScoreStatic(Template.StaticBoxLight, SourceBounds, SlotRect);
+  ScoreTheme.StaticBoxDark[TargetSlotIndex] := TransformScoreStatic(Template.StaticBoxDark, SourceBounds, SlotRect);
+  ScoreTheme.StaticRatings[TargetSlotIndex] := TransformScoreStatic(Template.StaticRatings, SourceBounds, SlotRect);
+  ScoreTheme.StaticBackLevel[TargetSlotIndex] := TransformScoreStatic(Template.StaticBackLevel, SourceBounds, SlotRect);
+  ScoreTheme.StaticBackLevelRound[TargetSlotIndex] := TransformScoreStatic(Template.StaticBackLevelRound, SourceBounds, SlotRect);
+  ScoreTheme.StaticLevel[TargetSlotIndex] := TransformScoreStatic(Template.StaticLevel, SourceBounds, SlotRect);
+  ScoreTheme.StaticLevelRound[TargetSlotIndex] := TransformScoreStatic(Template.StaticLevelRound, SourceBounds, SlotRect);
 end;
 
 constructor TTheme.Create;
@@ -1420,23 +1650,12 @@ begin
   Loading := TThemeLoading.Create;
   Main := TThemeMain.Create;
   Name := TThemeName.Create;
-  Level := TThemeLevel.Create;
   Song := TThemeSong.Create;
   Sing := TThemeSing.Create;
   Score := TThemeScore.Create;
-  Top5 := TThemeTop5.Create;
+  HighScores := TThemeHighScores.Create;
   Options := TThemeOptions.Create;
-  OptionsGame := TThemeOptionsGame.Create;
-  OptionsGraphics := TThemeOptionsGraphics.Create;
-  OptionsSound := TThemeOptionsSound.Create;
-  OptionsInput := TThemeOptionsInput.Create;
-  OptionsLyrics := TThemeOptionsLyrics.Create;
-  OptionsThemes := TThemeOptionsThemes.Create;
-  OptionsRecord := TThemeOptionsRecord.Create;
-  OptionsAdvanced := TThemeOptionsAdvanced.Create;
-  OptionsNetwork := TThemeOptionsNetwork.Create;
-  OptionsWebcam := TThemeOptionsWebcam.Create;
-  OptionsJukebox := TThemeOptionsJukebox.Create;
+  OptionsSub := TThemeOptionsSub.Create;
 
   Edit := TThemeEdit.Create;
   EditConvert := TThemeEditConvert.Create;
@@ -1480,6 +1699,34 @@ begin
   LoadList;
 end;
 
+procedure TTheme.OpenFile(ThemeNum: integer);
+var
+  I: integer;
+begin
+  ThemeIni := TMemIniFile.Create(Themes[ThemeNum].FileName.ToNative);
+
+  // Load base theme if declared
+  if (Themes[ThemeNum].BaseTheme <> '') then
+  begin
+    for I := Low(Themes) to High(Themes) do
+    begin
+      if (CompareText(Themes[ThemeNum].BaseTheme, Themes[I].Name) = 0) then
+      begin
+        if (Themes[I].BaseTheme <> '') then
+          Log.LogError('Multiple base themes not allowed', 'TTheme.LoadTheme');
+        BaseThemeIni := TMemIniFile.Create(Themes[I].FileName.ToNative);
+        Break;
+      end;
+    end;
+  end;
+end;
+
+procedure TTheme.CloseFile;
+begin
+  freeandnil(ThemeIni);
+  freeandnil(BaseThemeIni);
+end;
+
 procedure TTheme.LoadHeader(FileName: IPath);
   var
     Entry: TThemeEntry;
@@ -1491,16 +1738,20 @@ procedure TTheme.LoadHeader(FileName: IPath);
     Len: integer;
     Skins: TUTF8StringDynArray;
 begin
-  Entry.Filename := ThemePath.Append(FileName);
+  Entry.Filename := Path(FileName.ToNative());
   //read info from theme header
   Ini := TMemIniFile.Create(Entry.Filename.ToNative);
 
-  Entry.Name := Ini.ReadString('Theme', 'Name', FileName.SetExtension('').ToNative);
+  Entry.Name := Ini.ReadString('Theme', 'Name', FileName.GetName().SetExtension('').ToNative);
+  Entry.BaseTheme := Ini.ReadString('Theme', 'BaseTheme', '');
   ThemeVersion := Trim(UpperCase(Ini.ReadString('Theme', 'US_Version', 'no version tag')));
   Entry.Creator := Ini.ReadString('Theme', 'Creator', 'Unknown');
   SkinName := Ini.ReadString('Theme', 'DefaultSkin', FileName.SetExtension('').ToNative);
 
   Ini.Free;
+
+  if (ThemeExists(Entry.Name)) then
+    Exit;
 
   // don't load theme with wrong version tag
   if ThemeVersion <> 'USD 110' then
@@ -1540,21 +1791,46 @@ procedure TTheme.LoadList;
   var
     Iter: IFileIterator;
     FileInfo: TFileInfo;
+    I: integer;
+    ThemePath: IPath;
 begin
-  Log.LogStatus('Searching for Theme : ' + ThemePath.ToNative + '*.ini', 'Theme.LoadList');
-
-  Iter := FileSystem.FileFind(ThemePath.Append('*.ini'), 0);
-  while (Iter.HasNext) do
+  for I := 0 to ThemePaths.Count - 1 do
   begin
-    FileInfo := Iter.Next;
-    Log.LogStatus('Found Theme: ' + FileInfo.Name.ToNative, 'Theme.LoadList');
-    LoadHeader(Fileinfo.Name);
+    ThemePath := IPath(ThemePaths[I]);
+    Log.LogStatus('Searching for Theme : ' + ThemePath.ToNative + '*.ini', 'Theme.LoadList');
+    Iter := FileSystem.FileFind(ThemePath.Append('*.ini'), 0);
+    while (Iter.HasNext) do
+    begin
+      FileInfo := Iter.Next;
+      Log.LogStatus('Found Theme: ' + FileInfo.Name.ToNative, 'Theme.LoadList');
+      LoadHeader(ThemePath.Append(Fileinfo.Name));
+    end;
+  end;
+end;
+
+function TTheme.ThemeExists(Name: string): boolean;
+var
+  I: integer;
+begin
+  Result := false;
+  for I := Low(Themes) to High(Themes) do
+  begin
+    if (Themes[I].Name = Name) then
+    begin
+      Result := true;
+      Exit;
+    end;
   end;
 end;
 
 function TTheme.LoadTheme(ThemeNum: integer; sColor: integer): boolean;
 var
   I, J:    integer;
+  IniFile: TMemIniFile;
+  SectionList: TThemeSectionList;
+  NamePlayerSelectTemplate: TNamePlayerSelectTemplate;
+  NamePlayerSelectBounds: TPlayerSlotRect;
+  NamePlayerSelectLayoutBounds: TPlayerSlotRect;
 begin
   Result := false;
 
@@ -1570,13 +1846,7 @@ begin
   if Themes[ThemeNum].FileName.IsFile() then
   begin
     Result := true;
-
-    {$IFDEF THEMESAVE}
-    ThemeIni := TIniFile.Create(Themes[ThemeNum].FileName.ToNative);
-    {$ELSE}
-    ThemeIni := TMemIniFile.Create(Themes[ThemeNum].FileName.ToNative);
-    {$ENDIF}
-
+    OpenFile(ThemeNum);
     if ThemeIni.ReadString('Theme', 'Name', '') <> '' then
     begin
 
@@ -1636,13 +1906,17 @@ begin
       Main.TextDescriptionLong.Text := Main.DescriptionLong[0];
 
       // Name
+      SetLength(Name.PlayerSelect, UIni.PlayerCapacity);
+      SetLength(Name.PlayerSelectText, UIni.PlayerCapacity);
+      SetLength(Name.PlayerSelectAvatar, UIni.PlayerCapacity);
       ThemeLoadBasic(Name, 'Name');
 
       ThemeLoadButton(Name.PlayerButtonName, 'NamePlayerButtonName');
       ThemeLoadButton(Name.PlayerButtonAvatar, 'NamePlayerButtonAvatar');
 
-      Name.PlayerScrollAvatar.NumAvatars := ThemeIni.ReadInteger('NamePlayerScrollAvatar', 'Count', 5);
-      Name.PlayerScrollAvatar.DistanceAvatars := ThemeIni.ReadInteger('NamePlayerScrollAvatar', 'Distance', 40);
+      IniFile := ResolveThemeFile('NamePlayerScrollAvatar');
+      Name.PlayerScrollAvatar.NumAvatars := IniFile.ReadInteger('NamePlayerScrollAvatar', 'Count', 5);
+      Name.PlayerScrollAvatar.DistanceAvatars := IniFile.ReadInteger('NamePlayerScrollAvatar', 'Distance', 40);
 
       ThemeLoadButton(Name.PlayerAvatar, 'NamePlayerAvatar');
 
@@ -1650,56 +1924,46 @@ begin
       ThemeLoadSelectSlide(Name.SelectPlayerColor, 'NameSelectPlayerColor');
       ThemeLoadSelectSlide(Name.SelectPlayerLevel, 'NameSelectPlayerLevel');
 
-      for I := 0 to UIni.IMaxPlayerCount-1 do
-      begin
-        ThemeLoadOptionalStatic(Name.PlayerSelect[I], 'NamePlayerSelectStatic' + IntToStr((I + 1)));
-        ThemeLoadText(Name.PlayerSelectText[I], 'NamePlayerSelectStatic' + IntToStr((I + 1)) + 'Text');
-        ThemeLoadOptionalStaticRectangle(Name.PlayerSelectAvatar[I], 'NamePlayerSelectStatic' + IntToStr((I + 1)) + 'Avatar');
-      end;
+      ThemeLoadStatic(NamePlayerSelectTemplate.Frame, 'NamePlayerSelectTemplateFrame');
+      ThemeLoadText(NamePlayerSelectTemplate.Text, 'NamePlayerSelectTemplateText');
+      ThemeLoadStaticRectangle(NamePlayerSelectTemplate.Avatar, 'NamePlayerSelectTemplateAvatar');
+      Name.PlayerSelectTemplateFrame := NamePlayerSelectTemplate.Frame;
+      Name.PlayerSelectTemplateText := NamePlayerSelectTemplate.Text;
+      Name.PlayerSelectTemplateAvatar := NamePlayerSelectTemplate.Avatar;
+      SectionList := GetSectionList('NamePlayerSelectGrid');
+      if Length(SectionList) = 0 then
+        SectionList := GetSectionList('NamePlayerSelectLayout');
+      Name.PlayerSelectLayout.Area.X := ReadInteger(SectionList, 'GridX', ReadInteger(SectionList, 'X', 30));
+      Name.PlayerSelectLayout.Area.Y := ReadInteger(SectionList, 'GridY', ReadInteger(SectionList, 'Y', 185));
+      Name.PlayerSelectLayout.Area.W := ReadInteger(SectionList, 'GridW', ReadInteger(SectionList, 'W', 760));
+      Name.PlayerSelectLayout.Area.H := ReadInteger(SectionList, 'GridH', ReadInteger(SectionList, 'H', 155));
+      Name.PlayerSelectLayout.MinPlayerCount := ReadInteger(SectionList, 'MinimumVisibleSlots',
+        ReadInteger(SectionList, 'MinPlayerCount', 2));
+      Name.PlayerSelectLayout.MaxColumns := ReadInteger(SectionList, 'MaximumColumns',
+        ReadInteger(SectionList, 'MaxColumns', 12));
+      Name.PlayerSelectLayout.RowHeightDivisor := ReadFloat(SectionList, 'RowVerticalSpreadDivisor',
+        ReadFloat(SectionList, 'RowHeightDivisor', 1.5));
+      Name.PlayerSelectLayout.MaxScaleSmall := ReadFloat(SectionList, 'MaxScaleUpTo2Players',
+        ReadFloat(SectionList, 'MaxScaleSmall', 1.35));
+      Name.PlayerSelectLayout.MaxScaleMedium := ReadFloat(SectionList, 'MaxScaleUpTo4Players',
+        ReadFloat(SectionList, 'MaxScaleMedium', 1.15));
+      Name.PlayerSelectLayout.MaxScaleDefault := ReadFloat(SectionList, 'MaxScaleDefault',
+        ReadFloat(SectionList, 'MaxScaleDefault', 1.0));
+      NamePlayerSelectBounds := GetNamePlayerSelectTemplateBounds(NamePlayerSelectTemplate);
+      NamePlayerSelectLayoutBounds := GetNamePlayerSelectLayoutBounds(NamePlayerSelectBounds, Name.PlayerSelectLayout);
+
+      for I := 0 to UIni.PlayerCapacity-1 do
+        AssignNamePlayerSelectSlot(Name, NamePlayerSelectTemplate, NamePlayerSelectBounds, NamePlayerSelectLayoutBounds, I);
 
       ThemeLoadButton(Name.PlayerSelectCurrent, 'NamePlayerSelectCurrent');
-
-      // Level
-      ThemeLoadBasic(Level, 'Level');
-
-      ThemeLoadButton(Level.ButtonEasy, 'LevelButtonEasy');
-      ThemeLoadButton(Level.ButtonMedium, 'LevelButtonMedium');
-      ThemeLoadButton(Level.ButtonHard, 'LevelButtonHard');
 
       //Song
       ThemeSongLoad();
 
-      //LyricBar
-      LyricBar.UpperX := ThemeIni.ReadInteger('SingLyricsUpperBar', 'X', 0);
-      LyricBar.UpperW := ThemeIni.ReadInteger('SingLyricsUpperBar', 'W', 0);
-      LyricBar.UpperY := ThemeIni.ReadInteger('SingLyricsUpperBar', 'Y', 0);
-      LyricBar.UpperH := ThemeIni.ReadInteger('SingLyricsUpperBar', 'H', 0);
-      LyricBar.IndicatorYOffset := ThemeIni.ReadInteger('SingLyricsUpperBar', 'IndicatorYOffset', 0);
-      LyricBar.LowerX := ThemeIni.ReadInteger('SingLyricsLowerBar', 'X', 0);
-      LyricBar.LowerW := ThemeIni.ReadInteger('SingLyricsLowerBar', 'W', 0);
-      LyricBar.LowerY := ThemeIni.ReadInteger('SingLyricsLowerBar', 'Y', 0);
-      LyricBar.LowerH := ThemeIni.ReadInteger('SingLyricsLowerBar', 'H', 0);
-
-      //LyricBarDuet
-      LyricBarDuetP1.UpperX := ThemeIni.ReadInteger('SingLyricsDuetP1UpperBar', 'X', 0);
-      LyricBarDuetP1.UpperW := ThemeIni.ReadInteger('SingLyricsDuetP1UpperBar', 'W', 0);
-      LyricBarDuetP1.UpperY := ThemeIni.ReadInteger('SingLyricsDuetP1UpperBar', 'Y', 0);
-      LyricBarDuetP1.UpperH := ThemeIni.ReadInteger('SingLyricsDuetP1UpperBar', 'H', 0);
-      LyricBarDuetP1.IndicatorYOffset := ThemeIni.ReadInteger('SingLyricsDuetP1UpperBar', 'IndicatorYOffset', 0);
-      LyricBarDuetP1.LowerX := ThemeIni.ReadInteger('SingLyricsDuetP1LowerBar', 'X', 0);
-      LyricBarDuetP1.LowerW := ThemeIni.ReadInteger('SingLyricsDuetP1LowerBar', 'W', 0);
-      LyricBarDuetP1.LowerY := ThemeIni.ReadInteger('SingLyricsDuetP1LowerBar', 'Y', 0);
-      LyricBarDuetP1.LowerH := ThemeIni.ReadInteger('SingLyricsDuetP1LowerBar', 'H', 0);
-
-      LyricBarDuetP2.UpperX := ThemeIni.ReadInteger('SingLyricsDuetP2UpperBar', 'X', 0);
-      LyricBarDuetP2.UpperW := ThemeIni.ReadInteger('SingLyricsDuetP2UpperBar', 'W', 0);
-      LyricBarDuetP2.UpperY := ThemeIni.ReadInteger('SingLyricsDuetP2UpperBar', 'Y', 0);
-      LyricBarDuetP2.UpperH := ThemeIni.ReadInteger('SingLyricsDuetP2UpperBar', 'H', 0);
-      LyricBarDuetP2.IndicatorYOffset := ThemeIni.ReadInteger('SingLyricsDuetP2UpperBar', 'IndicatorYOffset', 0);
-      LyricBarDuetP2.LowerX := ThemeIni.ReadInteger('SingLyricsDuetP2LowerBar', 'X', 0);
-      LyricBarDuetP2.LowerW := ThemeIni.ReadInteger('SingLyricsDuetP2LowerBar', 'W', 0);
-      LyricBarDuetP2.LowerY := ThemeIni.ReadInteger('SingLyricsDuetP2LowerBar', 'Y', 0);
-      LyricBarDuetP2.LowerH := ThemeIni.ReadInteger('SingLyricsDuetP2LowerBar', 'H', 0);
+      //Lyric Bars
+      ThemeLoadLyricBar(LyricBar, 'SingLyrics');
+      ThemeLoadLyricBar(LyricBarDuetP1, 'SingLyricsDuetP1');
+      ThemeLoadLyricBar(LyricBarDuetP2, 'SingLyricsDuetP2');
 
       // Lyric Jukebox
       { Need to change calculation in SongOptions
@@ -1818,56 +2082,71 @@ begin
       ThemeLoadText (Sing.InfoMessageText, 'SingInfoMessageText');
       ThemeLoadStatic (Sing.InfoMessageBG, 'SingInfoMessageBG');
 
-      ThemeLoadSingPlayerStatics(Sing.Solo1PP1, 'P1');
+      ThemeLoadSingPlayerStatics(Sing.PlayerTemplate, 'PlayerTemplate');
+      SectionList := GetSectionList('SingPlayerGrid');
+      Sing.PlayerLayout.ColumnContainerLeft := ReadInteger(SectionList, 'LaneAreaX', 40);
+      Sing.PlayerLayout.ColumnContainerTopReserved := ReadInteger(SectionList, 'LaneAreaY', 120);
+      Sing.PlayerLayout.ColumnContainerTopNoLyrics := ReadInteger(SectionList, 'LaneAreaYNoLyrics',
+        Sing.PlayerLayout.ColumnContainerTopReserved);
+      Sing.PlayerLayout.ColumnContainerWidth := ReadInteger(SectionList, 'LaneAreaW', 750);
+      Sing.PlayerLayout.LaneHeightReserved := ReadInteger(SectionList, 'LaneAreaHReserved', 335);
+      Sing.PlayerLayout.LaneHeightNoLyrics := ReadInteger(SectionList, 'LaneAreaHNoLyrics', 395);
+      Sing.PlayerLayout.ColumnGap := ReadInteger(SectionList, 'LaneColumnGap', 50);
+      Sing.PlayerLayout.RowGap := ReadInteger(SectionList, 'LaneRowGap', 0);
+      Sing.PlayerLayout.GridExtraLeft := ReadInteger(SectionList, 'LaneGridLeftInset', 20);
+      Sing.PlayerLayout.BaseLineSpacing := ReadInteger(SectionList, 'LaneBaseLineSpacing', 15);
+      Sing.PlayerLayout.GuideLineCount := ReadInteger(SectionList, 'LaneGuideLineCount', 9);
+      Sing.PlayerLayout.RowAnchorGuideIndex := ReadInteger(SectionList, 'LaneRowAnchorGuideIndex', 7);
+      Sing.PlayerLayout.WidgetScaleBaseWidth := ReadInteger(SectionList, 'WidgetScaleReferenceW', 300);
+      Sing.PlayerLayout.WidgetScalePerPlayer := ReadFloat(SectionList, 'WidgetScalePerPlayer', 0.02);
+      Sing.PlayerLayout.WidgetScaleMin := ReadFloat(SectionList, 'WidgetScaleMin', 0.82);
 
-      ThemeLoadSingPlayerStatics(Sing.Solo2PP1, 'P1TwoP');
-      ThemeLoadSingPlayerStatics(Sing.Solo2PP2, 'P2R');
+      Sing.PlayerLayout.ColumnContainerWidth := Max(1, Sing.PlayerLayout.ColumnContainerWidth);
+      Sing.PlayerLayout.LaneHeightReserved := Max(1, Sing.PlayerLayout.LaneHeightReserved);
+      Sing.PlayerLayout.LaneHeightNoLyrics := Max(1, Sing.PlayerLayout.LaneHeightNoLyrics);
+      Sing.PlayerLayout.ColumnGap := Max(0, Sing.PlayerLayout.ColumnGap);
+      Sing.PlayerLayout.RowGap := Max(0, Sing.PlayerLayout.RowGap);
+      Sing.PlayerLayout.GridExtraLeft := Max(0, Sing.PlayerLayout.GridExtraLeft);
+      Sing.PlayerLayout.BaseLineSpacing := Max(1, Sing.PlayerLayout.BaseLineSpacing);
+      Sing.PlayerLayout.GuideLineCount := Max(2, Sing.PlayerLayout.GuideLineCount);
+      Sing.PlayerLayout.RowAnchorGuideIndex := EnsureRange(Sing.PlayerLayout.RowAnchorGuideIndex,
+        0, Sing.PlayerLayout.GuideLineCount - 1);
+      Sing.PlayerLayout.WidgetScaleBaseWidth := Max(1, Sing.PlayerLayout.WidgetScaleBaseWidth);
+      Sing.PlayerLayout.WidgetScalePerPlayer := Max(0.0, Sing.PlayerLayout.WidgetScalePerPlayer);
+      Sing.PlayerLayout.WidgetScaleMin := EnsureRange(Sing.PlayerLayout.WidgetScaleMin, 0.1, 1.0);
 
-      ThemeLoadSingPlayerStatics(Sing.Solo3PP1, 'P1ThreeP');
-      ThemeLoadSingPlayerStatics(Sing.Solo3PP2, 'P2M');
-      // TODO: we have to load Solo3PP3 manually because the SingBar uses a different name
-      ThemeLoadText(Sing.Solo3PP3.Name, 'SingP3RText');
-      ThemeLoadText(Sing.Solo3PP3.Score, 'SingP3RTextScore');
-      ThemeLoadPosition(Sing.Solo3PP3.ScoreBackground, 'SingP3RStatic2');
-      ThemeLoadStatic(Sing.Solo3PP3.AvatarFrame, 'SingP3RStatic');
-      ThemeLoadStaticAlphaRectangle(Sing.Solo3PP3.Avatar, 'SingP3RAvatar');
-      // TODO: SingBar uses non-consistent naming in theme
-      ThemeLoadPosition(Sing.Solo3PP3.SingBar, 'SingP3SingBar');
-      ThemeLoadPosition(Sing.Solo3PP3.Oscilloscope, 'SingP3ROscilloscope');
+      SectionList := GetSectionList('SingPlayerWidgetPlacement');
+      Sing.PlayerWidgetLayout.MinFrameW := ReadInteger(SectionList, 'MinFrameW', 26);
+      Sing.PlayerWidgetLayout.MinFrameH := ReadInteger(SectionList, 'MinFrameH', 26);
+      Sing.PlayerWidgetLayout.MinScoreW := ReadInteger(SectionList, 'MinScoreW', 56);
+      Sing.PlayerWidgetLayout.MinScoreH := ReadInteger(SectionList, 'MinScoreH', 18);
+      Sing.PlayerWidgetLayout.HeaderOffsetLeft := ReadInteger(SectionList, 'HeaderLeftOffset', 30);
+      Sing.PlayerWidgetLayout.HeaderOffsetTopBase := ReadInteger(SectionList, 'HeaderTopOffsetBase', 40);
+      Sing.PlayerWidgetLayout.HeaderOffsetTopPerExtraRow := ReadInteger(SectionList,
+        'HeaderTopOffsetPerExtraRow', 0);
+      Sing.PlayerWidgetLayout.MinAvatarInsetX := ReadInteger(SectionList, 'AvatarInsetMinX', 1);
+      Sing.PlayerWidgetLayout.MinAvatarInsetY := ReadInteger(SectionList, 'AvatarInsetMinY', 1);
+      Sing.PlayerWidgetLayout.NameGapBaseX := ReadInteger(SectionList, 'NameGapX', 10);
+      Sing.PlayerWidgetLayout.NameGapMinX := ReadInteger(SectionList, 'NameGapMinX', 8);
+      Sing.PlayerWidgetLayout.NamePaddingBaseX := ReadInteger(SectionList, 'NamePaddingX', 6);
+      Sing.PlayerWidgetLayout.NamePaddingMinX := ReadInteger(SectionList, 'NamePaddingMinX', 4);
+      Sing.PlayerWidgetLayout.NamePaddingBaseY := ReadInteger(SectionList, 'NamePaddingY', 6);
+      Sing.PlayerWidgetLayout.NamePaddingMinY := ReadInteger(SectionList, 'NamePaddingMinY', 3);
+      Sing.PlayerWidgetLayout.NameMinW := ReadInteger(SectionList, 'NameMinW', 24);
+      Sing.PlayerWidgetLayout.NameMinH := ReadInteger(SectionList, 'NameMinH', 14);
+      Sing.PlayerWidgetLayout.NameMinSize := ReadInteger(SectionList, 'NameMinSize', 10);
+      Sing.PlayerWidgetLayout.ScoreWidthFraction := ReadFloat(SectionList, 'ScoreWidthFractionOfLane', 0.36);
+      Sing.PlayerWidgetLayout.OscilloscopeGapBaseY := ReadInteger(SectionList, 'OscilloscopeGapY', 4);
+      Sing.PlayerWidgetLayout.OscilloscopeGapMinY := ReadInteger(SectionList, 'OscilloscopeGapMinY', 2);
+      Sing.PlayerWidgetLayout.OscilloscopeMinW := ReadInteger(SectionList, 'OscilloscopeMinW', 40);
+      Sing.PlayerWidgetLayout.OscilloscopeMinH := ReadInteger(SectionList, 'OscilloscopeMinH', 8);
+      Sing.PlayerWidgetLayout.PopupYOffsetSolo := ReadInteger(SectionList, 'PopupYOffsetSolo', 65);
+      Sing.PlayerWidgetLayout.PopupYOffsetDuet := ReadInteger(SectionList, 'PopupYOffsetDuet', 40);
+      Sing.PlayerWidgetLayout.PopupFontSizeSolo := ReadInteger(SectionList, 'PopupFontSizeSolo', 18);
+      Sing.PlayerWidgetLayout.PopupFontSizeDuet := ReadInteger(SectionList, 'PopupFontSizeDuet', 14);
 
       ThemeLoadStatic(Sing.StaticSongName, 'SingSongNameStatic');
       ThemeLoadText(Sing.TextSongName, 'SingSongNameText');
-
-      // 3/6 players duet
-      ThemeLoadSingPlayerStatics(Sing.Duet3PP1, 'DuetP1ThreeP');
-      ThemeLoadSingPlayerStatics(Sing.Duet3PP2, 'DuetP2M');
-      ThemeLoadSingPlayerStatics(Sing.Duet3PP3, 'DuetP3R');
-
-      //4P/6P mode in 1 Screen
-      ThemeLoadSingPlayerStatics(Sing.Solo4PP1, 'P1FourP');
-      ThemeLoadSingPlayerStatics(Sing.Solo4PP2, 'P2FourP');
-      ThemeLoadSingPlayerStatics(Sing.Solo4PP3, 'P3FourP');
-      ThemeLoadSingPlayerStatics(Sing.Solo4PP4, 'P4FourP');
-
-      ThemeLoadSingPlayerStatics(Sing.Solo6PP1, 'P1SixP');
-      ThemeLoadSingPlayerStatics(Sing.Solo6PP2, 'P2SixP');
-      ThemeLoadSingPlayerStatics(Sing.Solo6PP3, 'P3SixP');
-      ThemeLoadSingPlayerStatics(Sing.Solo6PP4, 'P4SixP');
-      ThemeLoadSingPlayerStatics(Sing.Solo6PP5, 'P5SixP');
-      ThemeLoadSingPlayerStatics(Sing.Solo6PP6, 'P6SixP');
-
-      // duet 4/6 players in one screen
-      ThemeLoadSingPlayerStatics(Sing.Duet4PP1, 'P1DuetFourP');
-      ThemeLoadSingPlayerStatics(Sing.Duet4PP2, 'P2DuetFourP');
-      ThemeLoadSingPlayerStatics(Sing.Duet4PP3, 'P3DuetFourP');
-      ThemeLoadSingPlayerStatics(Sing.Duet4PP4, 'P4DuetFourP');
-
-      ThemeLoadSingPlayerStatics(Sing.Duet6PP1, 'P1DuetSixP');
-      ThemeLoadSingPlayerStatics(Sing.Duet6PP2, 'P2DuetSixP');
-      ThemeLoadSingPlayerStatics(Sing.Duet6PP3, 'P3DuetSixP');
-      ThemeLoadSingPlayerStatics(Sing.Duet6PP4, 'P4DuetSixP');
-      ThemeLoadSingPlayerStatics(Sing.Duet6PP5, 'P5DuetSixP');
-      ThemeLoadSingPlayerStatics(Sing.Duet6PP6, 'P6DuetSixP');
 
       //Line Bonus Texts
       Sing.LineBonusText[0] := Language.Translate('POPUP_AWFUL');
@@ -1884,29 +2163,9 @@ begin
       ThemeLoadStatic(Sing.PausePopUp, 'PausePopUpStatic');
 
       // Score
-      ThemeLoadBasic(Score, 'Score');
+      ThemeScoreLoadData;
 
-      ThemeLoadText(Score.TextArtist, 'ScoreTextArtist');
-      ThemeLoadText(Score.TextTitle, 'ScoreTextTitle');
-      ThemeLoadText(Score.TextArtistTitle, 'ScoreTextArtistTitle');
-
-      // Send Button's
-      for I := 1 to 3 do
-         ThemeLoadButton(Score.ButtonSend[I], 'ScoreButtonSend' + IntToStr(I));
-
-      ThemeLoadStatic(Score.StaticNavigate, 'ScoreStaticNavigate');
-      ThemeLoadText(Score.TextNavigate, 'ScoreTextNavigate');
-
-      // Top5
-      ThemeLoadBasic(Top5, 'Top5');
-
-      ThemeLoadText(Top5.TextLevel,       'Top5TextLevel');
-      ThemeLoadText(Top5.TextArtistTitle, 'Top5TextArtistTitle');
-      ThemeLoadStatics(Top5.StaticNumber, 'Top5StaticNumber');
-      ThemeLoadTexts(Top5.TextNumber,     'Top5TextNumber');
-      ThemeLoadTexts(Top5.TextName,       'Top5TextName');
-      ThemeLoadTexts(Top5.TextScore,      'Top5TextScore');
-      ThemeLoadTexts(Top5.TextDate,       'Top5TextDate');
+      ThemeLoadHighScores;
 
       // Options
       ThemeLoadBasic(Options, 'Options');
@@ -1941,167 +2200,9 @@ begin
       ThemeLoadText(Options.TextDescription, 'OptionsTextDescription');
       Options.TextDescription.Text := Options.Description[OPTIONS_DESC_INDEX_GAME]; // Select default first menu button 'Game'
 
-      // Options Game
-      ThemeLoadBasic(OptionsGame, 'OptionsGame');
-
-      ThemeLoadSelectSlide(OptionsGame.SelectLanguage,   'OptionsGameSelectSlideLanguage');
-      ThemeLoadSelectSlide(OptionsGame.SelectSongMenu,   'OptionsGameSelectSongMenu');
-      ThemeLoadSelectSlide(OptionsGame.SelectSorting,    'OptionsGameSelectSlideSorting');
-      ThemeLoadSelectSlide(OptionsGame.SelectTabs,       'OptionsGameSelectTabs');
-      ThemeLoadSelectSlide(OptionsGame.SelectShowScores, 'OptionsGameSelectShowScores');
-      ThemeLoadSelectSlide(OptionsGame.SelectDebug,      'OptionsGameSelectDebug');
-      ThemeLoadSelectSlide(OptionsGame.SelectAVDelay,    'OptionsGameSelectAVDelay');
-      ThemeLoadSelectSlide(OptionsGame.SelectMicDelay,   'OptionsGameSelectMicDelay');
-      ThemeLoadButton(OptionsGame.ButtonExit,            'OptionsGameButtonExit');
-
-      // Options Graphics
-      ThemeLoadBasic(OptionsGraphics, 'OptionsGraphics');
-
-      ThemeLoadSelectSlide(OptionsGraphics.SelectFullscreen,   'OptionsGraphicsSelectFullscreen');
-      ThemeLoadSelectSlide(OptionsGraphics.SelectResolution,   'OptionsGraphicsSelectSlideResolution');
-      ThemeLoadSelectSlide(OptionsGraphics.SelectDepth,        'OptionsGraphicsSelectDepth');
-      ThemeLoadSelectSlide(OptionsGraphics.SelectVisualizer,   'OptionsGraphicsSelectVisualizer');
-      ThemeLoadSelectSlide(OptionsGraphics.SelectOscilloscope, 'OptionsGraphicsSelectOscilloscope');
-      ThemeLoadSelectSlide(OptionsGraphics.SelectLineBonus,    'OptionsGraphicsSelectLineBonus');
-      ThemeLoadSelectSlide(OptionsGraphics.SelectMovieSize,    'OptionsGraphicsSelectMovieSize');
-      ThemeLoadButton(OptionsGraphics.ButtonExit,              'OptionsGraphicsButtonExit');
-
-      // Options Sound
-      ThemeLoadBasic(OptionsSound, 'OptionsSound');
-
-      ThemeLoadSelectSlide(OptionsSound.SelectBackgroundMusic,       'OptionsSoundSelectBackgroundMusic');
-      ThemeLoadSelectSlide(OptionsSound.SelectClickAssist,           'OptionsSoundSelectClickAssist');
-      ThemeLoadSelectSlide(OptionsSound.SelectBeatClick,             'OptionsSoundSelectBeatClick');
-      //Song Preview
-      ThemeLoadSelectSlide(OptionsSound.SelectSlidePreviewVolume,    'OptionsSoundSelectSlidePreviewVolume');
-      ThemeLoadSelectSlide(OptionsSound.SelectSlidePreviewFading,    'OptionsSoundSelectSlidePreviewFading');
-      ThemeLoadSelectSlide(OptionsSound.SelectSlideVoicePassthrough, 'OptionsSoundSelectVoicePassthrough');
-      ThemeLoadSelectSlide(OptionsSound.SelectSlideMusicAutoGain,    'OptionsSoundSelectSlideMusicAutoGain');
-
-      ThemeLoadButton(OptionsSound.ButtonExit, 'OptionsSoundButtonExit');
-
-      // Options Input
-      ThemeLoadBasic(OptionsInput, 'OptionsInput');
-
-      ThemeLoadSelectSlide(OptionsInput.SelectMouse,     'OptionsInputSelectMouse');
-      ThemeLoadSelectSlide(OptionsInput.SelectJoypad,    'OptionsInputSelectJoypad');
-      ThemeLoadButton(OptionsInput.ButtonExit, 'OptionsInputButtonExit');
-
-      // Options Lyrics
-      ThemeLoadBasic(OptionsLyrics, 'OptionsLyrics');
-
-      ThemeLoadSelectSlide(OptionsLyrics.SelectLyricsFont,   'OptionsLyricsSelectLyricsFont');
-      ThemeLoadSelectSlide(OptionsLyrics.SelectLyricsStyle,  'OptionsLyricsSelectLyricsStyle');
-      ThemeLoadSelectSlide(OptionsLyrics.SelectLyricsEffect, 'OptionsLyricsSelectLyricsEffect');
-      //ThemeLoadSelectSlide(OptionsLyrics.SelectSolmization,  'OptionsLyricsSelectSolmization');
-      ThemeLoadSelectSlide(OptionsLyrics.SelectNoteLines,    'OptionsLyricsSelectNoteLines');
-
-      OptionsLyrics.UpperX := ThemeIni.ReadInteger('OptionsLyricsUpperBar', 'X', 0);
-      OptionsLyrics.UpperW := ThemeIni.ReadInteger('OptionsLyricsUpperBar', 'W', 0);
-      OptionsLyrics.UpperY := ThemeIni.ReadInteger('OptionsLyricsUpperBar', 'Y', 0);
-      OptionsLyrics.UpperH := ThemeIni.ReadInteger('OptionsLyricsUpperBar', 'H', 0);
-      OptionsLyrics.LowerX := ThemeIni.ReadInteger('OptionsLyricsLowerBar', 'X', 0);
-      OptionsLyrics.LowerW := ThemeIni.ReadInteger('OptionsLyricsLowerBar', 'W', 0);
-      OptionsLyrics.LowerY := ThemeIni.ReadInteger('OptionsLyricsLowerBar', 'Y', 0);
-      OptionsLyrics.LowerH := ThemeIni.ReadInteger('OptionsLyricsLowerBar', 'H', 0);
-
-      ThemeLoadButton(OptionsLyrics.ButtonExit,              'OptionsLyricsButtonExit');
-
-      // Options Themes
-      ThemeLoadBasic(OptionsThemes, 'OptionsThemes');
-
-      ThemeLoadSelectSlide(OptionsThemes.SelectTheme, 'OptionsThemesSelectTheme');
-      ThemeLoadSelectSlide(OptionsThemes.SelectSkin,  'OptionsThemesSelectSkin');
-      ThemeLoadSelectSlide(OptionsThemes.SelectColor, 'OptionsThemesSelectColor');
-      ThemeLoadButton(OptionsThemes.ButtonExit,       'OptionsThemesButtonExit');
-
-      // Options Record
-      ThemeLoadBasic(OptionsRecord, 'OptionsRecord');
-
-      ThemeLoadSelectSlide(OptionsRecord.SelectSlideCard,     'OptionsRecordSelectSlideCard');
-      ThemeLoadSelectSlide(OptionsRecord.SelectSlideInput,    'OptionsRecordSelectSlideInput');
-      ThemeLoadSelectSlide(OptionsRecord.SelectChannel,       'OptionsRecordSelectChannel');
-      ThemeLoadSelectSlide(OptionsRecord.SelectAssignee,      'OptionsRecordSelectAssignee');
-      ThemeLoadSelectSlide(OptionsRecord.SelectThreshold,     'OptionsRecordSelectThreshold'); //basisbit TODO
-      ThemeLoadSelectSlide(OptionsRecord.SelectMicBoost,      'OptionsRecordSelectMicBoost');
-      ThemeLoadButton(OptionsRecord.ButtonExit,               'OptionsRecordButtonExit');
-
-      //Options Advanced
-      ThemeLoadBasic(OptionsAdvanced, 'OptionsAdvanced');
-
-      ThemeLoadSelectSlide(OptionsAdvanced.SelectLoadAnimation, 'OptionsAdvancedSelectLoadAnimation');
-      ThemeLoadSelectSlide(OptionsAdvanced.SelectScreenFade,    'OptionsAdvancedSelectScreenFade');
-      ThemeLoadSelectSlide(OptionsAdvanced.SelectEffectSing,    'OptionsAdvancedSelectEffectSing');
-      ThemeLoadSelectSlide(OptionsAdvanced.SelectLineBonus,     'OptionsAdvancedSelectLineBonus');
-      ThemeLoadSelectSlide(OptionsAdvanced.SelectOnSongClick,   'OptionsAdvancedSelectSlideOnSongClick');
-      ThemeLoadSelectSlide(OptionsAdvanced.SelectAskbeforeDel,  'OptionsAdvancedSelectAskbeforeDel');
-      ThemeLoadSelectSlide(OptionsAdvanced.SelectPartyPopup,    'OptionsAdvancedSelectPartyPopup');
-      ThemeLoadSelectSlide(OptionsAdvanced.SelectSingScores,    'OptionsAdvancedSelectSingScores');
-      ThemeLoadSelectSlide(OptionsAdvanced.SelectTopScores,     'OptionsAdvancedSelectTopScores');
-      ThemeLoadButton     (OptionsAdvanced.ButtonExit,          'OptionsAdvancedButtonExit');
-
-      //Options Network
-      ThemeLoadBasic(OptionsNetwork, 'OptionsNetwork');
-
-      ThemeLoadSelectSlide(OptionsNetwork.SelectWebsite,       'OptionsNetworkSelectWebsite');
-      ThemeLoadSelectSlide(OptionsNetwork.SelectUsername,      'OptionsNetworkSelectUsername');
-      ThemeLoadSelectSlide(OptionsNetwork.SelectSendName,      'OptionsNetworkSelectSendSaveName');
-      ThemeLoadSelectSlide(OptionsNetwork.SelectAutoMode,      'OptionsNetworkSelectAutoMode');
-      ThemeLoadSelectSlide(OptionsNetwork.SelectAutoPlayer,      'OptionsNetworkSelectAutoPlayer');
-      ThemeLoadSelectSlide(OptionsNetwork.SelectAutoScoreEasy,   'OptionsNetworkSelectAutoScoreEasy');
-      ThemeLoadSelectSlide(OptionsNetwork.SelectAutoScoreMedium, 'OptionsNetworkSelectAutoScoreMedium');
-      ThemeLoadSelectSlide(OptionsNetwork.SelectAutoScoreHard,   'OptionsNetworkSelectAutoScoreHard');
-      ThemeLoadText(OptionsNetwork.TextInsertUser, 'OptionsNetworkTextInsertUser');
-
-      ThemeLoadButton(OptionsNetwork.ButtonInsert,          'OptionsNetworkButtonInsert');
-      ThemeLoadButton(OptionsNetwork.ButtonExit,          'OptionsNetworkButtonExit');
-
-      //Options Webcam
-      ThemeLoadBasic(OptionsWebcam, 'OptionsWebcam');
-
-      ThemeLoadSelectSlide(OptionsWebcam.SelectWebcam,     'OptionsWebcamSelectWebcam');
-      ThemeLoadSelectSlide(OptionsWebcam.SelectResolution, 'OptionsWebcamSelectResolution');
-      ThemeLoadSelectSlide(OptionsWebcam.SelectFPS,        'OptionsWebcamSelectFPS');
-      ThemeLoadSelectSlide(OptionsWebcam.SelectFlip,       'OptionsWebcamSelectFlip');
-      ThemeLoadSelectSlide(OptionsWebcam.SelectBrightness, 'OptionsWebcamSelectBrightness');
-      ThemeLoadSelectSlide(OptionsWebcam.SelectSaturation, 'OptionsWebcamSelectSaturation');
-      ThemeLoadSelectSlide(OptionsWebcam.SelectHue,        'OptionsWebcamSelectHue');
-      ThemeLoadSelectSlide(OptionsWebcam.SelectEffect,     'OptionsWebcamSelectEffect');
-
-      ThemeLoadButton(OptionsWebcam.ButtonPreVisualization,          'OptionsWebcamButtonPreVisualization');
-      ThemeLoadButton(OptionsWebcam.ButtonExit,          'OptionsWebcamButtonExit');
-
-      // Options Jukebox
-      ThemeLoadBasic(OptionsJukebox, 'OptionsJukebox');
-
-      ThemeLoadSelectSlide(OptionsJukebox.SelectLyricsFont,   'OptionsJukeboxSelectLyricsFont');
-      ThemeLoadSelectSlide(OptionsJukebox.SelectLyricsStyle,   'OptionsJukeboxSelectLyricsStyle');
-      ThemeLoadSelectSlide(OptionsJukebox.SelectLyricsEffect, 'OptionsJukeboxSelectLyricsEffect');
-      ThemeLoadSelectSlide(OptionsJukebox.SelectLyricsAlpha,   'OptionsJukeboxSelectLyricsAlpha');
-      ThemeLoadSelectSlide(OptionsJukebox.SelectLine,         'OptionsJukeboxSelectLine');
-      ThemeLoadSelectSlide(OptionsJukebox.SelectProperty,    'OptionsJukeboxSelectProperty');
-      ThemeLoadSelectSlide(OptionsJukebox.SelectColor,        'OptionsJukeboxSelectColor');
-      ThemeLoadSelectSlide(OptionsJukebox.SelectR,    'OptionsJukeboxSelectR');
-      ThemeLoadSelectSlide(OptionsJukebox.SelectG,    'OptionsJukeboxSelectG');
-      ThemeLoadSelectSlide(OptionsJukebox.SelectB,    'OptionsJukeboxSelectB');
-      ThemeLoadStatic(OptionsJukebox.PointerR,        'OptionsJukeboxPointerR');
-      ThemeLoadStatic(OptionsJukebox.PointerG,        'OptionsJukeboxPointerG');
-      ThemeLoadStatic(OptionsJukebox.PointerB,        'OptionsJukeboxPointerB');
-      ThemeLoadStatic(OptionsJukebox.TexR,            'OptionsJukeboxRed');
-      ThemeLoadStatic(OptionsJukebox.TexG,            'OptionsJukeboxGreen');
-      ThemeLoadStatic(OptionsJukebox.TexB,            'OptionsJukeboxBlue');
-      ThemeLoadStatic(OptionsJukebox.TexColor,        'OptionsJukeboxColor');
-
-      OptionsJukebox.UpperX := ThemeIni.ReadInteger('OptionsJukeboxUpperBar', 'X', 0);
-      OptionsJukebox.UpperW := ThemeIni.ReadInteger('OptionsJukeboxUpperBar', 'W', 0);
-      OptionsJukebox.UpperY := ThemeIni.ReadInteger('OptionsJukeboxUpperBar', 'Y', 0);
-      OptionsJukebox.UpperH := ThemeIni.ReadInteger('OptionsJukeboxUpperBar', 'H', 0);
-      OptionsJukebox.LowerX := ThemeIni.ReadInteger('OptionsJukeboxLowerBar', 'X', 0);
-      OptionsJukebox.LowerW := ThemeIni.ReadInteger('OptionsJukeboxLowerBar', 'W', 0);
-      OptionsJukebox.LowerY := ThemeIni.ReadInteger('OptionsJukeboxLowerBar', 'Y', 0);
-      OptionsJukebox.LowerH := ThemeIni.ReadInteger('OptionsJukeboxLowerBar', 'H', 0);
-
-      ThemeLoadButton(OptionsJukebox.ButtonExit,              'OptionsJukeboxButtonExit');
+      ThemeLoadOptionsSub;
+      ThemeLoadStatics(OptionsNetworkLegendStatic, 'OptionsNetworkLegendStatic');
+      ThemeLoadTexts(OptionsNetworkLegendText, 'OptionsNetworkLegendText');
 
       //Edit Menu
       ThemeLoadBasic (Edit,               'Edit');
@@ -2227,6 +2328,14 @@ begin
       ThemeLoadButton(SendScorePopup.Button1, 'SendScorePopupButton1');
       ThemeLoadButton(SendScorePopup.Button2, 'SendScorePopupButton2');
 
+      // help popup
+      ThemeLoadBasic (HelpPopup, 'HelpPopup');
+      ThemeLoadButton(HelpPopup.Button1, 'HelpPopupButton1');
+      ThemeLoadSelectSlide(HelpPopup.SelectVolAudio, 'HelpPopupSelectVolAudio');
+      ThemeLoadSelectSlide(HelpPopup.SelectVolVocals, 'HelpPopupSelectVolVocals');
+      ThemeLoadSelectSlide(HelpPopup.SelectVolSfx, 'HelpPopupSelectVolSfx');
+      ThemeLoadSelectSlide(HelpPopup.SelectVolPreview, 'HelpPopupSelectVolPreview');
+
       // download score popup
       ThemeLoadBasic (ScoreDownloadPopup, 'ScoreDownloadPopup');
       ThemeLoadButton(ScoreDownloadPopup.Button1, 'ScoreDownloadPopupButton1');
@@ -2263,6 +2372,7 @@ begin
       SongJumpto.IType[5] := Language.Translate('SONG_JUMPTO_TYPE6');
       SongJumpto.IType[6] := Language.Translate('SONG_JUMPTO_TYPE7');
       SongJumpto.IType[7] := Language.Translate('SONG_JUMPTO_TYPE8');
+      SongJumpto.IType[8] := Language.Translate('SONG_JUMPTO_TYPE9');
       SongJumpto.SongsFound := Language.Translate('SONG_JUMPTO_SONGSFOUND');
       SongJumpto.NoSongsFound := Language.Translate('SONG_JUMPTO_NOSONGSFOUND');
       SongJumpto.CatText := Language.Translate('SONG_JUMPTO_CATTEXT');
@@ -2430,12 +2540,144 @@ begin
       //Fill IMode
       IMode[0] := Language.Translate('PARTY_MODE_CLASSIC');
       IMode[1] := Language.Translate('PARTY_MODE_CLASSIC_FREE');
-      IMode[2] := Language.Translate('PARTY_MODE_CHALLENGE');
-      IMode[3] := Language.Translate('PARTY_MODE_TOURNAMENT');
+      IMode[2] := Language.Translate('PARTY_MODE_TOURNAMENT');
     end;
 
-    ThemeIni.Free;
+  CloseFile;
   end;
+end;
+
+
+// Return the the theme file that contains the desired section
+function TTheme.ResolveThemeFile(SectionName: string): TMemIniFile; inline;
+begin
+  Result := ThemeIni;
+  if (BaseThemeIni = nil) then
+    Exit;
+  if (not ThemeIni.SectionExists(SectionName) and BaseThemeIni.SectionExists(SectionName)) then
+    Result := BaseThemeIni;
+end;
+
+// Determine if the section exists in the theme or in the base theme
+// If it exists, determine whethere it is enabled. This allows the user
+// to opt out of optional texts/statics in derived themes
+function TTheme.SectionExists(const Name: string; var Enabled: boolean): boolean;
+begin
+  if (ThemeIni.SectionExists(Name)) then
+  begin
+    Result := True;
+    Enabled := ThemeIni.ReadBool(Name, 'Enabled', true);
+  end
+  else if ((BaseThemeIni <> nil) and BaseThemeIni.SectionExists(Name)) then
+  begin
+    Result := True;
+    Enabled := BaseThemeIni.ReadBool(Name, 'Enabled', true);
+  end
+  else
+    Result := False;
+end;
+
+function TTheme.GetSectionList(const Name: string): TThemeSectionList;
+var
+  IniFile: TMemIniFile;
+  I: integer;
+  NextSection: string;
+begin
+  Result := nil;
+  if (ThemeIni.SectionExists(Name)) then
+    IniFile := ThemeIni
+  else if ((BaseThemeIni <> nil) and (BaseThemeIni.SectionExists(Name))) then
+    IniFile := BaseThemeIni
+  else
+    Exit;
+  SetLength(Result, 1);
+  I := 0;
+  Result[I].Name := Name;
+  Result[I].IniFile := IniFile;
+
+  while (Length(Result) < MAX_INHERITANCE) do
+  begin
+    NextSection := Result[I].IniFile.ReadString(Result[I].Name, 'Inherits', '');
+    if (NextSection = '') then
+      Break;
+    if (ThemeIni.SectionExists(NextSection)) then
+      IniFile := ThemeIni
+    else if ((BaseThemeIni <> nil) and (BaseThemeIni.SectionExists(Name))) then
+      IniFile := BaseThemeIni
+    else
+    begin
+      Log.LogError('Inherited section "' + NextSection + '" not found (from section "' + Result[I].Name + '")', 'TTheme.GetSectionList');
+      Break;
+    end;
+    Inc(I, 1);
+    SetLength(Result, I + 1);
+    Result[I].Name := NextSection;
+    Result[I].IniFile := IniFile;
+  end;
+end;
+
+function TTheme.ReadString(const Sections: TThemeSectionList; const Key: string; const DefaultValue: string): string;
+var
+  I: integer;
+begin
+  for I := Low(Sections) to High(Sections) do
+  begin
+    Result := Sections[I].IniFile.ReadString(Sections[I].Name, Key, '');
+    if (Result <> '') then
+      Exit;
+  end;
+  Result := DefaultValue;
+end;
+
+function TTheme.ReadInteger(const Sections: TThemeSectionList; const Key: string; DefaultValue: integer): integer;
+var
+  I: integer;
+  S: string;
+begin
+  for I := Low(Sections) to High(Sections) do
+  begin
+    S := Sections[I].IniFile.ReadString(Sections[I].Name, Key, '');
+    if (S <> '') then
+    begin
+      Result := StrToIntDef(S, DefaultValue);
+      Exit;
+    end;
+  end;
+  Result := DefaultValue;
+end;
+
+function TTheme.ReadBool(const Sections: TThemeSectionList; const Key: string; DefaultValue: boolean): boolean;
+var
+  I: integer;
+  S: string;
+begin
+  for I := Low(Sections) to High(Sections) do
+  begin
+    S := Sections[I].IniFile.ReadString(Sections[I].Name, Key, '');
+    if (S <> '') then
+    begin
+      Result := StrToBoolDef(S, DefaultValue);
+      Exit;
+    end;
+  end;
+  Result := DefaultValue;
+end;
+
+function TTheme.ReadFloat(const Sections: TThemeSectionList; const Key: string; DefaultValue: real): real;
+var
+  I: integer;
+  S: string;
+begin
+  for I := Low(Sections) to High(Sections) do
+  begin
+    S := Sections[I].IniFile.ReadString(Sections[I].Name, Key, '');
+    if (S <> '') then
+    begin
+      Result := StrToFloatDef(S, DefaultValue);
+      Exit;
+    end;
+  end;
+  Result := DefaultValue;
 end;
 
 procedure TTheme.ThemeLoadBasic(Theme: TThemeBasic; const Name: string);
@@ -2448,12 +2690,40 @@ begin
   LastThemeBasic := Theme;
 end;
 
+procedure TTheme.ThemeLoadOptionsSub;
+var
+  IniFile: TMemIniFile;
+begin
+  ThemeLoadBasic(OptionsSub, 'OptionsSub');
+  ThemeLoadPosition(OptionsSub.Area, 'OptionsSubArea');
+  IniFile := ResolveThemeFile('OptionsSubArea');
+  OptionsSub.WidgetVSpacing := IniFile.ReadInteger('OptionsSubArea', 'WidgetVSpacing', 1);
+  OptionsSub.ButtonBackVSpacing := IniFile.ReadInteger('OptionsSubArea', 'ButtonBackVSpacing', 1);
+  IniFile := ResolveThemeFile('OptionsSubScrollBar');
+  OptionsSub.ScrollBar.HSpacing := IniFile.ReadInteger('OptionsSubScrollBar', 'HSpacing', -1);
+  OptionsSub.ScrollBar.W := IniFile.ReadInteger('OptionsSubScrollBar', 'W', -1);
+  LoadColor(OptionsSub.ScrollBar.ColR, OptionsSub.ScrollBar.ColG,  OptionsSub.ScrollBar.ColB, IniFile.ReadString('OptionsSubScrollBar', 'Color', ''));
+  LoadColor(OptionsSub.ScrollBar.HColR, OptionsSub.ScrollBar.HColG,  OptionsSub.ScrollBar.HColB, IniFile.ReadString('OptionsSubScrollBar', 'HColor', ''));
+  LoadColor(OptionsSub.ScrollBar.CColR, OptionsSub.ScrollBar.CColG,  OptionsSub.ScrollBar.CColB, IniFile.ReadString('OptionsSubScrollBar', 'CColor', ''));
+  ThemeLoadSelectSlide(OptionsSub.SelectS, 'OptionsSubSelectSlide');
+  OptionsSub.SelectS.showArrows := true;
+  OptionsSub.SelectS.oneItemOnly := true;
+  ThemeLoadText(OptionsSub.TextDescription, 'OptionsSubTextDescription');
+  ThemeLoadtext(OptionsSub.TextWhereAmI, 'OptionsSubTextWhereAmI');
+  ThemeLoadButton(OptionsSub.Button, 'OptionsSubButton');
+  ThemeLoadButton(OptionsSub.ButtonBack, 'OptionsSubButtonExit');
+  ThemeLoadStatics(OptionsSub.LegendStatic, 'OptionsSubLegendStatic');
+  ThemeLoadTexts(OptionsSub.LegendText, 'OptionsSubLegendText');
+end;
+
 procedure TTheme.ThemeLoadBackground(var ThemeBackground: TThemeBackground; const Name: string);
 var
   BGType: string;
   I: TBackgroundType;
+  SectionList: TThemeSectionList;
 begin
-  BGType := LowerCase(ThemeIni.ReadString(Name + 'Background', 'Type', 'auto'));
+  SectionList := GetSectionList(Name + 'Background');
+  BGType := LowerCase(ReadString(SectionList, 'Type', 'auto'));
 
   ThemeBackground.BGType := bgtAuto;
   for I := Low(BGT_Names) to High(BGT_Names) do
@@ -2464,41 +2734,71 @@ begin
       Break;
     end;
   end;
+  ThemeBackground.Tex     := ReadString(SectionList, 'Tex', '');
+  ThemeBackground.Color.R := ReadFloat(SectionList, 'ColR', 1);
+  ThemeBackground.Color.G := ReadFloat(SectionList, 'ColG', 1);
+  ThemeBackground.Color.B := ReadFloat(SectionList, 'ColB', 1);
+  ThemeBackground.Alpha   := ReadFloat(SectionList, 'Alpha', 1);
+end;
 
-  ThemeBackground.Tex     := ThemeIni.ReadString(Name + 'Background', 'Tex', '');
-  ThemeBackground.Color.R := ThemeIni.ReadFloat(Name + 'Background', 'ColR', 1);
-  ThemeBackground.Color.G := ThemeIni.ReadFloat(Name + 'Background', 'ColG', 1);
-  ThemeBackground.Color.B := ThemeIni.ReadFloat(Name + 'Background', 'ColB', 1);
-  ThemeBackground.Alpha   := ThemeIni.ReadFloat(Name + 'Background', 'Alpha', 1);
+procedure TTheme.ThemeLoadHighScoreList(var List: TThemeHighScoreList; const Name: string);
+var
+  SectionList: TThemeSectionList;
+begin
+  SectionList := GetSectionList(Name);
+  List.BottomY := ReadInteger(SectionList, 'BottomY', 390);
+  List.MinTextSize := ReadInteger(SectionList, 'MinTextSize', 18);
+  List.DefaultEntries := EnsureRange(ReadInteger(SectionList, 'DefaultEntries', 5), 5, 20);
+  List.MaxEntries := EnsureRange(ReadInteger(SectionList, 'MaxEntries', 20), List.DefaultEntries, 20);
+end;
+
+procedure TTheme.ThemeLoadHighScores;
+begin
+  ThemeLoadBasic(HighScores, 'HighScores');
+  ThemeLoadText(HighScores.TextTitle,            'HighScoresTextTitle');
+  ThemeLoadText(HighScores.TextWhereAmI,         'HighScoresTextWhereAmI');
+  ThemeLoadText(HighScores.TextArtistTitle,      'HighScoresTextArtistTitle');
+  ThemeLoadText(HighScores.TextDifficultyLabel,  'HighScoresTextDifficultyLabel');
+  ThemeLoadText(HighScores.TextDifficulty,       'HighScoresTextDifficulty');
+  ThemeLoadText(HighScores.TextContinue,         'HighScoresTextContinue');
+  ThemeLoadText(HighScores.TextNavigate,         'HighScoresTextNavigate');
+  ThemeLoadHighScoreList(HighScores.List,        'HighScoresListArea');
+  ThemeLoadStatic(HighScores.RowNumberStatic,    'HighScoresRowNumberStatic');
+  ThemeLoadText(HighScores.RowNumberText,        'HighScoresRowNumberText');
+  ThemeLoadText(HighScores.RowNameText,          'HighScoresRowNameText');
+  ThemeLoadText(HighScores.RowScoreText,         'HighScoresRowScoreText');
+  ThemeLoadText(HighScores.RowDateText,          'HighScoresRowDateText');
 end;
 
 procedure TTheme.ThemeLoadText(var ThemeText: TThemeText; const Name: string);
 var
   C: integer;
+  SectionList: TThemeSectionList;
 begin
-  ThemeText.X     := ThemeIni.ReadInteger(Name, 'X', 0);
-  ThemeText.Y     := ThemeIni.ReadInteger(Name, 'Y', 0);
-  ThemeText.W     := ThemeIni.ReadInteger(Name, 'W', 0);
-  ThemeText.H     := ThemeIni.ReadInteger(Name, 'H', 0);
+  SectionList := GetSectionList(Name);
+  ThemeText.X     := ReadInteger(SectionList, 'X', 0);
+  ThemeText.Y     := ReadInteger(SectionList, 'Y', 0);
+  ThemeText.W     := ReadInteger(SectionList, 'W', 0);
+  ThemeText.H     := ReadInteger(SectionList, 'H', 0);
 
-  ThemeText.Z     := ThemeIni.ReadFloat(Name, 'Z', 0);
+  ThemeText.Z     := ReadFloat(SectionList, 'Z', 0);
 
-  ThemeText.ColR  := ThemeIni.ReadFloat(Name, 'ColR', 0);
-  ThemeText.ColG  := ThemeIni.ReadFloat(Name, 'ColG', 0);
-  ThemeText.ColB  := ThemeIni.ReadFloat(Name, 'ColB', 0);
+  ThemeText.ColR  := ReadFloat(SectionList, 'ColR', 0);
+  ThemeText.ColG  := ReadFloat(SectionList, 'ColG', 0);
+  ThemeText.ColB  := ReadFloat(SectionList, 'ColB', 0);
 
-  ThemeText.Font  := ThemeIni.ReadInteger(Name, 'Font', 0);
-  ThemeText.Style := ThemeIni.ReadInteger(Name, 'Style', ftRegular);
-  ThemeText.Size  := ThemeIni.ReadInteger(Name, 'Size', 0);
-  ThemeText.Align := ThemeIni.ReadInteger(Name, 'Align', 0);
+  ThemeText.Font  := ReadInteger(SectionList, 'Font', 0);
+  ThemeText.Style := ReadInteger(SectionList, 'Style', ftRegular);
+  ThemeText.Size  := ReadInteger(SectionList, 'Size', 0);
+  ThemeText.Align := ReadInteger(SectionList, 'Align', 0);
 
-  ThemeText.Text  := Language.Translate(ThemeIni.ReadString(Name, 'Text', ''));
-  ThemeText.Color := ThemeIni.ReadString(Name, 'Color', '');
-  ThemeText.DColor := ThemeIni.ReadString(Name, 'DColor', '');
+  ThemeText.Text  := Language.Translate(ReadString(SectionList, 'Text', ''));
+  ThemeText.Color := ReadString(SectionList, 'Color', '');
+  ThemeText.DColor := ReadString(SectionList, 'DColor', '');
 
   //Reflection
-  ThemeText.Reflection         := (ThemeIni.ReadInteger(Name, 'Reflection', 0)) = 1;
-  ThemeText.Reflectionspacing  := ThemeIni.ReadFloat(Name, 'ReflectionSpacing', 15);
+  ThemeText.Reflection         := ReadBool(SectionList, 'Reflection', ThemeText.Reflection);
+  ThemeText.Reflectionspacing  := ReadFloat(SectionList, 'ReflectionSpacing', ThemeText.Reflectionspacing);
 
   C := ColorExists(ThemeText.Color);
   if C >= 0 then
@@ -2515,25 +2815,28 @@ begin
     ThemeText.DColG := Color[C].RGB.G;
     ThemeText.DColB := Color[C].RGB.B;
   end;
-
 end;
 
 procedure TTheme.ThemeLoadTexts(var ThemeText: AThemeText; const Name: string);
 var
   T: integer;
+  Enabled: boolean;
 begin
   T := 1;
-  while ThemeIni.SectionExists(Name + IntToStr(T)) do
+  while SectionExists(Name + IntToStr(T), Enabled) do
   begin
-    SetLength(ThemeText, T);
-    ThemeLoadText(ThemeText[T-1], Name + IntToStr(T));
+    if (Enabled) then
+    begin
+      SetLength(ThemeText, T);
+      ThemeLoadText(ThemeText[T-1], Name + IntToStr(T));
+    end;
     Inc(T);
   end;
 end;
 
 procedure TTheme.ThemeLoadOptionalStatic(var ThemeStatic: TThemeStatic; const Name: string);
 begin
-  if ThemeIni.SectionExists(Name) then
+  if ThemeIni.SectionExists(Name) or ((BaseThemeIni <> nil) and BaseThemeIni.SectionExists(Name)) then
   begin
     ThemeLoadStatic(ThemeStatic, Name);
   end;
@@ -2542,24 +2845,30 @@ end;
 procedure TTheme.ThemeLoadStatic(var ThemeStatic: TThemeStatic; const Name: string);
 var
   C: integer;
+  SectionList: TThemeSectionList;
 begin
-  if not ThemeIni.SectionExists(Name) then
+  SectionList := GetSectionList(Name);
+  if (Length(SectionList)) = 0 then
   begin
     Log.LogWarn('Required theme section ' + Name + ' does not exist.', 'TTheme.ThemeLoadStatic');
     Exit;
   end;
 
-  ThemeStatic.Tex := ThemeIni.ReadString(Name, 'Tex', '');
-
-  ThemeStatic.X := ThemeIni.ReadInteger(Name, 'X', 0);
-  ThemeStatic.Y := ThemeIni.ReadInteger(Name, 'Y', 0);
-  ThemeStatic.Z := ThemeIni.ReadFloat  (Name, 'Z', 0);
-  ThemeStatic.W := ThemeIni.ReadInteger(Name, 'W', 0);
-  ThemeStatic.H := ThemeIni.ReadInteger(Name, 'H', 0);
-  ThemeStatic.Alpha := ThemeIni.ReadFloat(Name, 'Alpha', 1);
-  ThemeStatic.Typ   := ParseTextureType(ThemeIni.ReadString(Name, 'Type', ''), TEXTURE_TYPE_PLAIN);
-  ThemeStatic.Color := ThemeIni.ReadString(Name, 'Color', '');
-
+  ThemeStatic.Tex := ReadString(SectionList, 'Tex', '');
+  ThemeStatic.X := ReadInteger(SectionList, 'X', 0);
+  ThemeStatic.Y := ReadInteger(SectionList, 'Y', 0);
+  ThemeStatic.Z := ReadFloat  (SectionList, 'Z', 0);
+  ThemeStatic.W := ReadInteger(SectionList, 'W', 0);
+  ThemeStatic.H := ReadInteger(SectionList, 'H', 0);
+  ThemeStatic.Alpha := ReadFloat(SectionList, 'Alpha', 1);
+  ThemeStatic.Typ   := ParseTextureType(ReadString(SectionList, 'Type', ''), TEXTURE_TYPE_PLAIN);
+  ThemeStatic.Color := ReadString(SectionList, 'Color', '');
+  ThemeStatic.TexX1 := ReadFloat(SectionList, 'TexX1', 0);
+  ThemeStatic.TexY1 := ReadFloat(SectionList, 'TexY1', 0);
+  ThemeStatic.TexX2 := ReadFloat(SectionList, 'TexX2', 1);
+  ThemeStatic.TexY2 := ReadFloat(SectionList, 'TexY2', 1);
+  ThemeStatic.Reflection         := ReadBool(SectionList, 'Reflection', false);
+  ThemeStatic.Reflectionspacing  := ReadFloat(SectionList, 'ReflectionSpacing', 15);
   C := ColorExists(ThemeStatic.Color);
   if C >= 0 then
   begin
@@ -2568,69 +2877,62 @@ begin
     ThemeStatic.ColB := Color[C].RGB.B;
   end;
 
-  ThemeStatic.TexX1 := ThemeIni.ReadFloat(Name, 'TexX1', 0);
-  ThemeStatic.TexY1 := ThemeIni.ReadFloat(Name, 'TexY1', 0);
-  ThemeStatic.TexX2 := ThemeIni.ReadFloat(Name, 'TexX2', 1);
-  ThemeStatic.TexY2 := ThemeIni.ReadFloat(Name, 'TexY2', 1);
-
-  //Reflection Mod
-  ThemeStatic.Reflection        := (ThemeIni.ReadInteger(Name, 'Reflection', 0) = 1);
-  ThemeStatic.ReflectionSpacing := ThemeIni.ReadFloat(Name, 'ReflectionSpacing', 15);
 end;
 
 procedure TTheme.ThemeLoadOptionalStaticRectangle(var ThemeStaticRectangle: TThemeStaticRectangle; const Name: string);
 begin
-  if ThemeIni.SectionExists(Name) then
+  if ThemeIni.SectionExists(Name) or ((BaseThemeIni <> nil) and BaseThemeIni.SectionExists(Name)) then
   begin
     ThemeLoadStaticRectangle(ThemeStaticRectangle, Name);
   end;
 end;
 
 procedure TTheme.ThemeLoadStaticRectangle(var ThemeStaticRectangle: TThemeStaticRectangle; const Name: string);
+var
+  SectionList: TThemeSectionList;
 begin
-  if not ThemeIni.SectionExists(Name) then
-  begin
+  SectionList := GetSectionList(Name);
+  if Length(SectionList) = 0 then
     Log.LogError('Required theme section ' + Name + ' (rectangle) does not exist.', 'TTheme.ThemeLoadStaticRectangle');
-  end;
 
-  ThemeStaticRectangle.X := ThemeIni.ReadInteger(Name, 'X', 0);
-  ThemeStaticRectangle.Y := ThemeIni.ReadInteger(Name, 'Y', 0);
-  ThemeStaticRectangle.Z := ThemeIni.ReadFloat  (Name, 'Z', 0);
-  ThemeStaticRectangle.W := ThemeIni.ReadInteger(Name, 'W', 0);
-  ThemeStaticRectangle.H := ThemeIni.ReadInteger(Name, 'H', 0);
+  ThemeStaticRectangle.X := ReadInteger(SectionList, 'X', 0);
+  ThemeStaticRectangle.Y := ReadInteger(SectionList, 'Y', 0);
+  ThemeStaticRectangle.Z := ReadFloat  (SectionList, 'Z', 0);
+  ThemeStaticRectangle.W := ReadInteger(SectionList, 'W', 0);
+  ThemeStaticRectangle.H := ReadInteger(SectionList, 'H', 0);
 end;
 
 procedure TTheme.ThemeLoadStaticAlphaRectangle(var static: TThemeStaticAlphaRectangle; const Name: string);
+var
+  SectionList: TThemeSectionList;
 begin
-  if not ThemeIni.SectionExists(Name) then
-  begin
+  SectionList := GetSectionList(Name);
+  if Length(SectionList) = 0 then
     Log.LogWarn('Required theme section ' + Name + ' (alpha rectangle) does not exist.', 'TTheme.ThemeLoadStaticAlphaRectangle');
-  end;
 
-  static.X := ThemeIni.ReadInteger(Name, 'X', 0);
-  static.Y := ThemeIni.ReadInteger(Name, 'Y', 0);
-  static.Z := ThemeIni.ReadFloat  (Name, 'Z', 0);
-  static.W := ThemeIni.ReadInteger(Name, 'W', 0);
-  static.H := ThemeIni.ReadInteger(Name, 'H', 0);
-  static.Alpha := ThemeIni.ReadFloat(Name, 'Alpha', 1);
+  static.X := ReadInteger(SectionList, 'X', 0);
+  static.Y := ReadInteger(SectionList, 'Y', 0);
+  static.Z := ReadFloat  (SectionList, 'Z', 0);
+  static.W := ReadInteger(SectionList, 'W', 0);
+  static.H := ReadInteger(SectionList, 'H', 0);
+  static.Alpha := ReadFloat(SectionList, 'Alpha', 1);
 end;
 
 procedure TTheme.ThemeLoadStaticColorRectangle(var ThemeStaticColorRectangle: TThemeStaticColorRectangle; const Name: string);
 var
   C: integer;
+  SectionList: TThemeSectionList;
 begin
-  if not ThemeIni.SectionExists(Name) then
-  begin
+  SectionList := GetSectionList(Name);
+  if Length(SectionList) = 0 then
     Log.LogWarn('Required theme section ' + Name + '(color rectangle) does not exist.', 'TTheme.ThemeStaticColorRectangle');
-  end;
-  if ThemeIni.ReadString(Name, 'X', '') = '' then Log.LogError('no X for ' + Name + ' found.', 'TTheme.ThemeStaticColorRectangle');
 
-  ThemeStaticColorRectangle.X := ThemeIni.ReadInteger(Name, 'X', 0);
-  ThemeStaticColorRectangle.Y := ThemeIni.ReadInteger(Name, 'Y', 0);
-  ThemeStaticColorRectangle.Z := ThemeIni.ReadFloat  (Name, 'Z', 0);
-  ThemeStaticColorRectangle.W := ThemeIni.ReadInteger(Name, 'W', 0);
-  ThemeStaticColorRectangle.H := ThemeIni.ReadInteger(Name, 'H', 0);
-  ThemeStaticColorRectangle.Color := ThemeIni.ReadString(Name, 'Color', '');
+    ThemeStaticColorRectangle.X := ReadInteger(SectionList, 'X', 0);
+    ThemeStaticColorRectangle.Y := ReadInteger(SectionList, 'Y', 0);
+    ThemeStaticColorRectangle.Z := ReadFloat  (SectionList, 'Z', 0);
+    ThemeStaticColorRectangle.W := ReadInteger(SectionList, 'W', 0);
+    ThemeStaticColorRectangle.H := ReadInteger(SectionList, 'H', 0);
+    ThemeStaticColorRectangle.Color := ReadString(SectionList, 'Color', '');
 
   C := ColorExists(ThemeStaticColorRectangle.Color);
   if C >= 0 then
@@ -2644,25 +2946,32 @@ end;
 procedure TTheme.ThemeLoadStatics(var ThemeStatic: AThemeStatic; const Name: string);
 var
   S: integer;
+  Enabled: boolean;
 begin
   S := 1;
-  while ThemeIni.SectionExists(Name + IntToStr(S)) do
+  while SectionExists(Name + IntToStr(S), Enabled) do
   begin
-    SetLength(ThemeStatic, S);
-    ThemeLoadStatic(ThemeStatic[S-1], Name + IntToStr(S));
+    if Enabled then
+    begin
+      SetLength(ThemeStatic, S);
+      ThemeLoadStatic(ThemeStatic[S-1], Name + IntToStr(S));
+    end;
     Inc(S);
   end;
 end;
 
 //Button Collection Mod
 procedure TTheme.ThemeLoadButtonCollection(var Collection: TThemeButtonCollection; const Name: string);
-var T: integer;
+var
+  T: integer;
+  SectionList: TThemeSectionList;
 begin
   //Load Collection Style
   ThemeLoadButton(Collection.Style, Name);
 
   //Load Other Attributes
-  T := ThemeIni.ReadInteger (Name, 'FirstChild', 0);
+  SectionList := GetSectionList(Name);
+  T := ReadInteger(SectionList, 'FirstChild', 0);
   if (T > 0) And (T < 256) then
     Collection.FirstChild := T
   else
@@ -2674,7 +2983,7 @@ var
   I: integer;
 begin
   I := 1;
-  while ThemeIni.SectionExists(Name + IntToStr(I)) do
+  while ThemeIni.SectionExists(Name + IntToStr(I)) or ((BaseThemeIni <> nil) and BaseThemeIni.SectionExists(Name + IntToStr(I))) do
   begin
     SetLength(Collections, I);
     ThemeLoadButtonCollection(Collections[I-1], Name + IntToStr(I));
@@ -2688,35 +2997,69 @@ var
   C:    integer;
   TLen: integer;
   T:    integer;
+  TextCount: integer;
+  Enabled: boolean;
   Collections2: PAThemeButtonCollection;
+  SectionList: TThemeSectionList;
 begin
-  if not ThemeIni.SectionExists(Name) then
+  if SectionExists(Name, Enabled) and (not Enabled) then
+  begin
+    SetLength(ThemeButton.Text, 0);
+    ThemeButton.Visible := False;
+    ThemeButton.Parent := 0;
+    Exit;
+  end;
+
+  SectionList := GetSectionList(Name);
+  if Length(SectionList) = 0 then
   begin
     ThemeButton.Visible := False;
     exit;
   end;
-  ThemeButton.Tex := ThemeIni.ReadString(Name, 'Tex', '');
-  ThemeButton.X := ThemeIni.ReadInteger (Name, 'X', 0);
-  ThemeButton.Y := ThemeIni.ReadInteger (Name, 'Y', 0);
-  ThemeButton.Z := ThemeIni.ReadFloat   (Name, 'Z', 0);
-  ThemeButton.W := ThemeIni.ReadInteger (Name, 'W', 0);
-  ThemeButton.H := ThemeIni.ReadInteger (Name, 'H', 0);
-  ThemeButton.Typ := ParseTextureType(ThemeIni.ReadString(Name, 'Type', ''), TEXTURE_TYPE_PLAIN);
+
+  ThemeButton.Tex := ReadString(SectionList, 'Tex', '');
+  ThemeButton.X := ReadInteger (SectionList, 'X', 0);
+  ThemeButton.Y := ReadInteger (SectionList, 'Y', 0);
+  ThemeButton.Z := ReadFloat   (SectionList, 'Z', 0);
+  ThemeButton.W := ReadInteger (SectionList, 'W', 0);
+  ThemeButton.H := ReadInteger (SectionList, 'H', 0);
+  ThemeButton.Typ := ParseTextureType(ReadString(SectionList, 'Type', ''), TEXTURE_TYPE_PLAIN);
 
   //Reflection Mod
-  ThemeButton.Reflection := (ThemeIni.ReadInteger(Name, 'Reflection', 0) = 1);
-  ThemeButton.ReflectionSpacing := ThemeIni.ReadFloat(Name, 'ReflectionSpacing', 15);
+  ThemeButton.Reflection := ReadBool(SectionList, 'Reflection', false);
+  ThemeButton.ReflectionSpacing := ReadFloat(SectionList, 'ReflectionSpacing', 15);
 
-  ThemeButton.ColR := ThemeIni.ReadFloat(Name, 'ColR', 1);
-  ThemeButton.ColG := ThemeIni.ReadFloat(Name, 'ColG', 1);
-  ThemeButton.ColB := ThemeIni.ReadFloat(Name, 'ColB', 1);
-  ThemeButton.Int :=  ThemeIni.ReadFloat(Name, 'Int', 1);
-  ThemeButton.DColR := ThemeIni.ReadFloat(Name, 'DColR', 1);
-  ThemeButton.DColG := ThemeIni.ReadFloat(Name, 'DColG', 1);
-  ThemeButton.DColB := ThemeIni.ReadFloat(Name, 'DColB', 1);
-  ThemeButton.DInt :=  ThemeIni.ReadFloat(Name, 'DInt', 1);
+  ThemeButton.ColR := ReadFloat(SectionList, 'ColR', 1);
+  ThemeButton.ColG := ReadFloat(SectionList, 'ColG', 1);
+  ThemeButton.ColB := ReadFloat(SectionList, 'ColB', 1);
+  ThemeButton.Int :=  ReadFloat(SectionList, 'Int', 1);
+  ThemeButton.DColR := ReadFloat(SectionList, 'DColR', 1);
+  ThemeButton.DColG := ReadFloat(SectionList, 'DColG', 1);
+  ThemeButton.DColB := ReadFloat(SectionList, 'DColB', 1);
+  ThemeButton.DInt :=  ReadFloat(SectionList, 'DInt', 1);
 
-  ThemeButton.Color := ThemeIni.ReadString(Name, 'Color', '');
+  ThemeButton.Color := ReadString(SectionList, 'Color', '');
+  ThemeButton.DColor := ReadString(SectionList, 'DColor', '');
+
+  ThemeButton.Visible := ReadBool(SectionList, 'Visible', true);
+
+  //Fade Mod
+  ThemeButton.SelectH := ReadInteger(SectionList, 'SelectH', ThemeButton.H);
+  ThemeButton.SelectW := ReadInteger(SectionList, 'SelectW', ThemeButton.W);
+
+  ThemeButton.DeSelectReflectionspacing := ReadFloat(SectionList, 'DeSelectReflectionSpacing', ThemeButton.Reflectionspacing);
+
+  ThemeButton.Fade := ReadBool(SectionList, 'Fade', false);
+  ThemeButton.FadeText := ReadBool(SectionList, 'FadeText', false);
+
+
+  ThemeButton.FadeTex := ReadString(SectionList, 'FadeTex', '');
+  ThemeButton.FadeTexPos:= ReadInteger(SectionList, 'FadeTexPos', 0);
+
+  //Button Collection Mod
+  T := ReadInteger(SectionList, 'Parent', 0);
+
+  // Set Color
   C := ColorExists(ThemeButton.Color);
   if C >= 0 then
   begin
@@ -2724,8 +3067,6 @@ begin
     ThemeButton.ColG := Color[C].RGB.G;
     ThemeButton.ColB := Color[C].RGB.B;
   end;
-
-  ThemeButton.DColor := ThemeIni.ReadString(Name, 'DColor', '');
   C := ColorExists(ThemeButton.DColor);
   if C >= 0 then
   begin
@@ -2733,26 +3074,6 @@ begin
     ThemeButton.DColG := Color[C].RGB.G;
     ThemeButton.DColB := Color[C].RGB.B;
   end;
-
-  ThemeButton.Visible := (ThemeIni.ReadInteger(Name, 'Visible', 1) = 1);
-
-  //Fade Mod
-  ThemeButton.SelectH := ThemeIni.ReadInteger (Name, 'SelectH', ThemeButton.H);
-  ThemeButton.SelectW := ThemeIni.ReadInteger (Name, 'SelectW', ThemeButton.W);
-
-  ThemeButton.DeSelectReflectionspacing := ThemeIni.ReadFloat(Name, 'DeSelectReflectionSpacing', ThemeButton.Reflectionspacing);
-
-  ThemeButton.Fade := (ThemeIni.ReadInteger(Name, 'Fade', 0) = 1);
-  ThemeButton.FadeText := (ThemeIni.ReadInteger(Name, 'FadeText', 0) = 1);
-
-
-  ThemeButton.FadeTex := ThemeIni.ReadString(Name, 'FadeTex', '');
-  ThemeButton.FadeTexPos:= ThemeIni.ReadInteger(Name, 'FadeTexPos', 0);
-  if (ThemeButton.FadeTexPos > 4) Or (ThemeButton.FadeTexPos < 0) then
-    ThemeButton.FadeTexPos := 0;
-
-  //Button Collection Mod
-  T := ThemeIni.ReadInteger(Name, 'Parent', 0);
 
   //Set Collections to Last Basic Collections if no valid Value
   if (Collections = nil) then
@@ -2768,82 +3089,101 @@ begin
   else
     ThemeButton.Parent := 0;
 
+  if (ThemeButton.FadeTexPos > 4) Or (ThemeButton.FadeTexPos < 0) then
+    ThemeButton.FadeTexPos := 0;
+
   //Read ButtonTexts
-  TLen := ThemeIni.ReadInteger(Name, 'Texts', 0);
-  SetLength(ThemeButton.Text, TLen);
+  TLen := ReadInteger(SectionList, 'Texts', 0);
+  TextCount := 0;
+  SetLength(ThemeButton.Text, 0);
   for T := 1 to TLen do
-    ThemeLoadText(ThemeButton.Text[T-1], Name + 'Text' + IntToStr(T));
+  begin
+    if SectionExists(Name + 'Text' + IntToStr(T), Enabled) and Enabled then
+    begin
+      SetLength(ThemeButton.Text, TextCount + 1);
+      ThemeLoadText(ThemeButton.Text[TextCount], Name + 'Text' + IntToStr(T));
+      Inc(TextCount);
+    end;
+  end;
 end;
 
 procedure TTheme.ThemeLoadSelectSlide(var ThemeSelectS: TThemeSelectSlide; const Name: string);
+var
+  SectionList: TThemeSectionList;
 begin
-  if not ThemeIni.SectionExists(Name) then
+  SectionList := GetSectionList(Name);
+  if Length(SectionList) = 0 then
   begin
     Log.LogWarn('Required theme section ' + Name + ' (selectslide) does not exist.', 'TTheme.ThemeLoadSelectSlide');
   end;
-  ThemeSelectS.Text := Language.Translate(ThemeIni.ReadString(Name, 'Text', ''));
+  ThemeSelectS.Text := Language.Translate(ReadString(SectionList, 'Text', ''));
 
-  ThemeSelectS.Tex := {Skin.SkinPath + }ThemeIni.ReadString(Name, 'Tex', '');
-  ThemeSelectS.Typ := ParseTextureType(ThemeIni.ReadString(Name, 'Type', ''), TEXTURE_TYPE_PLAIN);
-  ThemeSelectS.TexSBG := {Skin.SkinPath + }ThemeIni.ReadString(Name, 'TexSBG', '');
-  ThemeSelectS.TypSBG := ParseTextureType(ThemeIni.ReadString(Name, 'TypeSBG', ''), TEXTURE_TYPE_PLAIN);
+  ThemeSelectS.Tex := ReadString(SectionList, 'Tex', '');
+  ThemeSelectS.Typ := ParseTextureType(ReadString(SectionList, 'Type', ''), TEXTURE_TYPE_PLAIN);
+  ThemeSelectS.TexSBG := ReadString(SectionList, 'TexSBG', '');
+  ThemeSelectS.TypSBG := ParseTextureType(ReadString(SectionList, 'TypeSBG', ''), TEXTURE_TYPE_PLAIN);
 
-  ThemeSelectS.X := ThemeIni.ReadInteger(Name, 'X', 0);
-  ThemeSelectS.Y := ThemeIni.ReadInteger(Name, 'Y', 0);
-  ThemeSelectS.W := ThemeIni.ReadInteger(Name, 'W', 0);
-  ThemeSelectS.H := ThemeIni.ReadInteger(Name, 'H', 0);
+  ThemeSelectS.X := ReadInteger(SectionList, 'X', 0);
+  ThemeSelectS.Y := ReadInteger(SectionList, 'Y', 0);
+  ThemeSelectS.W := ReadInteger(SectionList, 'W', 0);
+  ThemeSelectS.H := ReadInteger(SectionList, 'H', 0);
 
-  ThemeSelectS.Z := ThemeIni.ReadFloat(Name, 'Z', 0);
+  ThemeSelectS.Z := ReadFloat(SectionList, 'Z', 0);
 
-  ThemeSelectS.TextSize := ThemeIni.ReadInteger(Name, 'TextSize', 30);
+  ThemeSelectS.TextSize := ReadInteger(SectionList, 'TextSize', 30);
+  ThemeSelectS.ArrowW := ReadInteger(SectionList, 'ArrowW', 0);
+  ThemeSelectS.ArrowH := ReadInteger(SectionList, 'ArrowH', 0);
 
-  ThemeSelectS.SkipX := ThemeIni.ReadInteger(Name, 'SkipX', 0);
+  ThemeSelectS.SkipX := ReadInteger(SectionList, 'SkipX', 0);
 
-  ThemeSelectS.SBGW := ThemeIni.ReadInteger(Name, 'SBGW', 400);
+  ThemeSelectS.SBGW := ReadInteger(SectionList, 'SBGW', 400);
 
-  LoadColor(ThemeSelectS.ColR, ThemeSelectS.ColG,  ThemeSelectS.ColB, ThemeIni.ReadString(Name, 'Color', ''));
-  ThemeSelectS.Int :=  ThemeIni.ReadFloat(Name, 'Int', 1);
-  LoadColor(ThemeSelectS.DColR, ThemeSelectS.DColG,  ThemeSelectS.DColB, ThemeIni.ReadString(Name, 'DColor', ''));
-  ThemeSelectS.DInt :=  ThemeIni.ReadFloat(Name, 'DInt', 1);
+  LoadColor(ThemeSelectS.ColR, ThemeSelectS.ColG,  ThemeSelectS.ColB, ReadString(SectionList, 'Color', ''));
+  ThemeSelectS.Int :=  ReadFloat(SectionList, 'Int', 1);
+  LoadColor(ThemeSelectS.DColR, ThemeSelectS.DColG,  ThemeSelectS.DColB, ReadString(SectionList, 'DColor', ''));
+  ThemeSelectS.DInt :=  ReadFloat(SectionList, 'DInt', 1);
 
-  LoadColor(ThemeSelectS.TColR, ThemeSelectS.TColG,  ThemeSelectS.TColB, ThemeIni.ReadString(Name, 'TColor', ''));
-  ThemeSelectS.TInt :=  ThemeIni.ReadFloat(Name, 'TInt', 1);
-  LoadColor(ThemeSelectS.TDColR, ThemeSelectS.TDColG,  ThemeSelectS.TDColB, ThemeIni.ReadString(Name, 'TDColor', ''));
-  ThemeSelectS.TDInt :=  ThemeIni.ReadFloat(Name, 'TDInt', 1);
+  LoadColor(ThemeSelectS.TColR, ThemeSelectS.TColG,  ThemeSelectS.TColB, ReadString(SectionList, 'TColor', ''));
+  ThemeSelectS.TInt :=  ReadFloat(SectionList, 'TInt', 1);
+  LoadColor(ThemeSelectS.TDColR, ThemeSelectS.TDColG,  ThemeSelectS.TDColB, ReadString(SectionList, 'TDColor', ''));
+  ThemeSelectS.TDInt :=  ReadFloat(SectionList, 'TDInt', 1);
 
-  LoadColor(ThemeSelectS.SBGColR, ThemeSelectS.SBGColG,  ThemeSelectS.SBGColB, ThemeIni.ReadString(Name, 'SBGColor', ''));
-  ThemeSelectS.SBGInt :=  ThemeIni.ReadFloat(Name, 'SBGInt', 1);
-  LoadColor(ThemeSelectS.SBGDColR, ThemeSelectS.SBGDColG,  ThemeSelectS.SBGDColB, ThemeIni.ReadString(Name, 'SBGDColor', ''));
-  ThemeSelectS.SBGDInt :=  ThemeIni.ReadFloat(Name, 'SBGDInt', 1);
+  LoadColor(ThemeSelectS.SBGColR, ThemeSelectS.SBGColG,  ThemeSelectS.SBGColB, ReadString(SectionList, 'SBGColor', ''));
+  ThemeSelectS.SBGInt :=  ReadFloat(SectionList, 'SBGInt', 1);
+  LoadColor(ThemeSelectS.SBGDColR, ThemeSelectS.SBGDColG,  ThemeSelectS.SBGDColB, ReadString(SectionList, 'SBGDColor', ''));
+  ThemeSelectS.SBGDInt :=  ReadFloat(SectionList, 'SBGDInt', 1);
 
-  LoadColor(ThemeSelectS.STColR, ThemeSelectS.STColG,  ThemeSelectS.STColB, ThemeIni.ReadString(Name, 'STColor', ''));
-  ThemeSelectS.STInt :=  ThemeIni.ReadFloat(Name, 'STInt', 1);
-  LoadColor(ThemeSelectS.STDColR, ThemeSelectS.STDColG,  ThemeSelectS.STDColB, ThemeIni.ReadString(Name, 'STDColor', ''));
-  ThemeSelectS.STDInt :=  ThemeIni.ReadFloat(Name, 'STDInt', 1);
+  LoadColor(ThemeSelectS.STColR, ThemeSelectS.STColG,  ThemeSelectS.STColB, ReadString(SectionList, 'STColor', ''));
+  ThemeSelectS.STInt :=  ReadFloat(SectionList, 'STInt', 1);
+  LoadColor(ThemeSelectS.STDColR, ThemeSelectS.STDColG,  ThemeSelectS.STDColB, ReadString(SectionList, 'STDColor', ''));
+  ThemeSelectS.STDInt :=  ReadFloat(SectionList, 'STDInt', 1);
 
-  ThemeSelectS.showArrows := (ThemeIni.ReadInteger(Name, 'ShowArrows', 0) = 1);
-  ThemeSelectS.oneItemOnly := (ThemeIni.ReadInteger(Name, 'OneItemOnly', 0) = 1);
+  ThemeSelectS.showArrows := ReadBool(SectionList, 'ShowArrows', false);
+  ThemeSelectS.oneItemOnly := ReadBool(SectionList, 'OneItemOnly', false);
 end;
 
 procedure TTheme.ThemeLoadEqualizer(var ThemeEqualizer: TThemeEqualizer; const Name: string);
-var I: integer;
+var
+  I: integer;
+  SectionList: TThemeSectionList;
 begin
-  ThemeEqualizer.Visible := (ThemeIni.ReadInteger(Name, 'Visible', 0) = 1);
-  ThemeEqualizer.Direction := (ThemeIni.ReadInteger(Name, 'Direction', 0) = 1);
-  ThemeEqualizer.Alpha := ThemeIni.ReadInteger(Name, 'Alpha', 1);
-  ThemeEqualizer.Space := ThemeIni.ReadInteger(Name, 'Space', 1);
-  ThemeEqualizer.X := ThemeIni.ReadInteger(Name, 'X', 0);
-  ThemeEqualizer.Y := ThemeIni.ReadInteger(Name, 'Y', 0);
-  ThemeEqualizer.Z := ThemeIni.ReadInteger(Name, 'Z', 1);
-  ThemeEqualizer.W := ThemeIni.ReadInteger(Name, 'PieceW', 8);
-  ThemeEqualizer.H := ThemeIni.ReadInteger(Name, 'PieceH', 8);
-  ThemeEqualizer.Bands := ThemeIni.ReadInteger(Name, 'Bands', 5);
-  ThemeEqualizer.Length := ThemeIni.ReadInteger(Name, 'Length', 12);
-  ThemeEqualizer.Reflection := (ThemeIni.ReadInteger(Name, 'Reflection', 0) = 1);
-  ThemeEqualizer.ReflectionSpacing := ThemeIni.ReadFloat(Name, 'ReflectionSpacing', 15);
+  SectionList := GetSectionList(Name);
+  ThemeEqualizer.Visible := ReadBool(SectionList, 'Visible', false);
+  ThemeEqualizer.Direction := ReadBool(SectionList, 'Direction', false);
+  ThemeEqualizer.Alpha := ReadInteger(SectionList, 'Alpha', 1);
+  ThemeEqualizer.Space := ReadInteger(SectionList, 'Space', 1);
+  ThemeEqualizer.X := ReadInteger(SectionList, 'X', 0);
+  ThemeEqualizer.Y := ReadInteger(SectionList, 'Y', 0);
+  ThemeEqualizer.Z := ReadInteger(SectionList, 'Z', 1);
+  ThemeEqualizer.W := ReadInteger(SectionList, 'PieceW', 8);
+  ThemeEqualizer.H := ReadInteger(SectionList, 'PieceH', 8);
+  ThemeEqualizer.Bands := ReadInteger(SectionList, 'Bands', 5);
+  ThemeEqualizer.Length := ReadInteger(SectionList, 'Length', 12);
+  ThemeEqualizer.Reflection := ReadBool(SectionList, 'Reflection', false);
+  ThemeEqualizer.ReflectionSpacing := ReadFloat(SectionList, 'ReflectionSpacing', 15);
 
   //Color
-  I := ColorExists(ThemeIni.ReadString(Name, 'Color', 'Black'));
+  I := ColorExists(ReadString(SectionList, 'Color', 'Black'));
   if I >= 0 then
   begin
     ThemeEqualizer.ColR := Color[I].RGB.R;
@@ -2859,15 +3199,36 @@ begin
 end;
 
 procedure TTheme.ThemeLoadPosition(var ThemePosition: TThemePosition; const Name: string);
+var
+  SectionList: TThemeSectionList;
 begin
-  if not ThemeIni.SectionExists(Name) then
+  SectionList := GetSectionList(Name);
+  if Length(SectionList) = 0 then
   begin
     Log.LogWarn('Required theme section ' + Name + '(position) does not exist.', 'TTheme.ThemeLoadPosition');
   end;
-  ThemePosition.X := ThemeIni.ReadInteger(Name, 'X', 0);
-  ThemePosition.Y := ThemeIni.ReadInteger(Name, 'Y', 0);
-  ThemePosition.H := ThemeIni.ReadInteger(Name, 'H', 0);
-  ThemePosition.W := ThemeIni.ReadInteger(Name, 'W', 0);
+  ThemePosition.X := ReadInteger(SectionList, 'X', 0);
+  ThemePosition.Y := ReadInteger(SectionList, 'Y', 0);
+  ThemePosition.H := ReadInteger(SectionList, 'H', 0);
+  ThemePosition.W := ReadInteger(SectionList, 'W', 0);
+end;
+
+procedure TTheme.ThemeLoadLyricBar(var LyricBar: TThemeLyricBar; const Name: string);
+var
+  SectionList: TThemeSectionList;
+begin
+  SectionList := GetSectionList(Name + 'UpperBar');
+  LyricBar.UpperX := ReadInteger(SectionList, 'X', 0);
+  LyricBar.UpperW := ReadInteger(SectionList, 'W', 0);
+  LyricBar.UpperY := ReadInteger(SectionList, 'Y', 0);
+  LyricBar.UpperH := ReadInteger(SectionList, 'H', 0);
+  LyricBar.IndicatorYOffset := ReadInteger(SectionList, 'IndicatorYOffset', 0);
+
+  SectionList := GetSectionList(Name + 'LowerBar');
+  LyricBar.LowerX := ReadInteger(SectionList, 'X', 0);
+  LyricBar.LowerW := ReadInteger(SectionList, 'W', 0);
+  LyricBar.LowerY := ReadInteger(SectionList, 'Y', 0);
+  LyricBar.LowerH := ReadInteger(SectionList, 'H', 0);
 end;
 
 procedure TTheme.ThemeLoadSingPlayerStatics(var ThemeSingPlayer: TThemeSingPlayer; const Name: string);
@@ -2886,9 +3247,11 @@ var
   SL:     TStringList;
   C:      integer;
   S:      string;
+  IniFile: TMemIniFile;
 begin
   SL := TStringList.Create;
-  ThemeIni.ReadSection('Colors', SL);
+  IniFile := ResolveThemeFile('Colors');
+  IniFile.ReadSection('Colors', SL);
 
   // normal colors
   SetLength(Color, SL.Count);
@@ -2896,7 +3259,7 @@ begin
   begin
     Color[C].Name := SL.Strings[C];
 
-    S := ThemeIni.ReadString('Colors', SL.Strings[C], '');
+    S := IniFile.ReadString('Colors', SL.Strings[C], '');
 
     Color[C].RGB.R := StrToInt(Copy(S, 1, Pos(' ' , S)-1))/255;
     Delete(S, 1, Pos(' ', S));
@@ -3163,7 +3526,14 @@ begin
     end;
 end;
 
-function GetPlayerColor(Color: integer): TRGB;
+function BlendColors(const LeftColor, RightColor: TRGB): TRGB;
+begin
+  Result.R := (LeftColor.R + RightColor.R) / 2;
+  Result.G := (LeftColor.G + RightColor.G) / 2;
+  Result.B := (LeftColor.B + RightColor.B) / 2;
+end;
+
+function GetBasePlayerColor(Color: integer): TRGB;
 begin
   case (Color) of
     1://blue
@@ -3271,7 +3641,18 @@ begin
   end;
 end;
 
-function GetPlayerLightColor(Color: integer): TRGB;
+function GetPlayerColor(Color: integer): TRGB;
+var
+  LeftColor: integer;
+  RightColor: integer;
+begin
+  if TryGetMixedPlayerColorPair(Color, LeftColor, RightColor) then
+    Result := BlendColors(GetBasePlayerColor(LeftColor), GetBasePlayerColor(RightColor))
+  else
+    Result := GetBasePlayerColor(Color);
+end;
+
+function GetBasePlayerLightColor(Color: integer): TRGB;
 begin
   case (Color) of
     1://blue
@@ -3377,6 +3758,17 @@ begin
       Result.B := 240/255;
     end;
   end;
+end;
+
+function GetPlayerLightColor(Color: integer): TRGB;
+var
+  LeftColor: integer;
+  RightColor: integer;
+begin
+  if TryGetMixedPlayerColorPair(Color, LeftColor, RightColor) then
+    Result := BlendColors(GetBasePlayerLightColor(LeftColor), GetBasePlayerLightColor(RightColor))
+  else
+    Result := GetBasePlayerLightColor(Color);
 end;
 
 function ColorSqrt(RGB: TRGB): TRGB;
@@ -3668,251 +4060,11 @@ begin
   Result := GetPlayerColor(Color);
 end;
 
-procedure TTheme.ThemeSave(const FileName: string);
-var
-  I: integer;
-begin
-  {$IFDEF THEMESAVE}
-  ThemeIni := TIniFile.Create(FileName);
-  {$ELSE}
-  ThemeIni := TMemIniFile.Create(FileName);
-  {$ENDIF}
-
-  ThemeSaveBasic(Loading, 'Loading');
-
-  ThemeSaveBasic(Main, 'Main');
-  ThemeSaveText(Main.TextDescription, 'MainTextDescription');
-  ThemeSaveText(Main.TextDescriptionLong, 'MainTextDescriptionLong');
-  ThemeSaveButton(Main.ButtonSolo, 'MainButtonSolo');
-
-  ThemeSaveButton(Main.ButtonEditor, 'MainButtonEditor');
-  ThemeSaveButton(Main.ButtonOptions, 'MainButtonOptions');
-  ThemeSaveButton(Main.ButtonExit, 'MainButtonExit');
-
-  ThemeSaveBasic(Name, 'Name');
-
-  //ThemeSaveButton(Name.PlayerName, 'NameButtonPlayer');
-
-  ThemeSaveBasic(Level, 'Level');
-  ThemeSaveButton(Level.ButtonEasy, 'LevelButtonEasy');
-  ThemeSaveButton(Level.ButtonMedium, 'LevelButtonMedium');
-  ThemeSaveButton(Level.ButtonHard, 'LevelButtonHard');
-
-  ThemeSaveBasic(Song, 'Song');
-  ThemeSaveText(Song.TextArtist, 'SongTextArtist');
-  ThemeSaveText(Song.TextTitle, 'SongTextTitle');
-  ThemeSaveText(Song.TextNumber, 'SongTextNumber');
-
-  //Show CAt in Top Left Mod
-  ThemeSaveText(Song.TextCat, 'SongTextCat');
-  ThemeSaveStatic(Song.StaticCat, 'SongStaticCat');
-
-  ThemeSaveBasic(Sing, 'Sing');
-
-  // lyrics bar
-  ThemeSaveStatic(Sing.StaticLyricsBar, 'SingLyricsBar');
-  ThemeSaveStatic(Sing.StaticLyricsBarDuet, 'SingLyricsBarDuet');
-
-  //TimeBar mod
-  ThemeSaveStatic(Sing.StaticTimeBar, 'SingTimeBar');
-  ThemeSaveStatic(Sing.StaticTimeProgress, 'SingTimeProgress');
-  ThemeSaveText(Sing.TextTimeLabelText, 'SingTimeLabelText');
-  ThemeSaveText(Sing.TextTimeText, 'SingTimeText');
-  //eoa TimeBar mod
-
-  ThemeSaveText(Sing.Solo1PP1.Name, 'SingP1Text');
-  ThemeSaveText(Sing.Solo1PP1.Score, 'SingP1TextScore');
-  ThemeSavePosition(Sing.Solo1PP1.ScoreBackground, 'SingP1Static2');
-  ThemeSaveStatic(Sing.Solo1PP1.AvatarFrame, 'SingP1Static');
-  ThemeSavePosition(Sing.Solo1PP1.SingBar, 'SingP1SingBar');
-
-  //Added for ps3 skin
-  //This one is shown in 2/4P mode
-  ThemeSaveText(Sing.Solo2PP1.Name, 'SingP1TwoPText');
-  ThemeSaveText(Sing.Solo2PP1.Score, 'SingP1TwoPTextScore');
-  ThemeSavePosition(Sing.Solo2PP1.ScoreBackground, 'SingP1TwoPStatic2');
-  ThemeSaveStatic(Sing.Solo2PP1.AvatarFrame, 'SingP1TwoPStatic');
-  ThemeSavePosition(Sing.Solo2PP1.SingBar, 'SingP1TwoPSingBar');
-
-  //This one is shown in 3/6P mode
-  ThemeSaveText(Sing.Solo3PP1.Name, 'SingP1ThreePText');
-  ThemeSaveText(Sing.Solo3PP1.Score, 'SingP1ThreePTextScore');
-  ThemeSavePosition(Sing.Solo3PP1.ScoreBackground, 'SingP1ThreePStatic2');
-  ThemeSaveStatic(Sing.Solo3PP1.AvatarFrame, 'SingP1ThreePStatic');
-  ThemeSavePosition(Sing.Solo3PP1.SingBar, 'SingP1ThreePSingBar');
-  //eoa
-
-  ThemeSaveText(Sing.Solo2PP2.Name, 'SingP2RText');
-  ThemeSaveText(Sing.Solo2PP2.Score, 'SingP2RTextScore');
-  ThemeSavePosition(Sing.Solo2PP2.ScoreBackground, 'SingP2RStatic2');
-  ThemeSaveStatic(Sing.Solo2PP2.AvatarFrame, 'SingP2RStatic');
-  ThemeSavePosition(Sing.Solo2PP2.SingBar, 'SingP2RSingBar');
-
-  ThemeSaveText(Sing.Solo3PP2.Name, 'SingP2MText');
-  ThemeSaveText(Sing.Solo3PP2.Score, 'SingP2MTextScore');
-  ThemeSavePosition(Sing.Solo3PP2.ScoreBackground, 'SingP2MStatic2');
-  ThemeSaveStatic(Sing.Solo3PP2.AvatarFrame, 'SingP2MStatic');
-  ThemeSavePosition(Sing.Solo3PP2.SingBar, 'SingP2MSingBar');
-
-  ThemeSaveText(Sing.Solo3PP3.Name, 'SingP3RText');
-  ThemeSaveText(Sing.Solo3PP3.Score, 'SingP3RTextScore');
-  ThemeSavePosition(Sing.Solo3PP3.ScoreBackground, 'SingP3RStatic2');
-  ThemeSaveStatic(Sing.Solo3PP3.AvatarFrame, 'SingP3RStatic');
-  // TODO: inconsistent naming!
-  ThemeSavePosition(Sing.Solo3PP3.SingBar, 'SingP3SingBar');
-
-  ThemeSaveBasic(Score, 'Score');
-  ThemeSaveText(Score.TextArtist, 'ScoreTextArtist');
-  ThemeSaveText(Score.TextTitle, 'ScoreTextTitle');
-
-  ThemeSaveBasic(Top5, 'Top5');
-  ThemeSaveText(Top5.TextLevel, 'Top5TextLevel');
-  ThemeSaveText(Top5.TextArtistTitle, 'Top5TextArtistTitle');
-  ThemeSaveStatics(Top5.StaticNumber, 'Top5StaticNumber');
-  ThemeSaveTexts(Top5.TextNumber, 'Top5TextNumber');
-  ThemeSaveTexts(Top5.TextName, 'Top5TextName');
-  ThemeSaveTexts(Top5.TextScore, 'Top5TextScore');
-
-  ThemeIni.Free;
-end;
-
-procedure TTheme.ThemeSaveBasic(Theme: TThemeBasic; const Name: string);
-begin
-  ThemeIni.WriteInteger(Name, 'Texts', Length(Theme.Text));
-
-  ThemeSaveBackground(Theme.Background, Name + 'Background');
-  ThemeSaveStatics(Theme.Statics, Name + 'Static');
-  ThemeSaveTexts(Theme.Text, Name + 'Text');
-end;
-
-procedure TTheme.ThemeSaveBackground(ThemeBackground: TThemeBackground; const Name: string);
-begin
-  if ThemeBackground.Tex <> '' then
-    ThemeIni.WriteString(Name, 'Tex', ThemeBackground.Tex)
-  else
-  begin
-    ThemeIni.EraseSection(Name);
-  end;
-end;
-
-procedure TTheme.ThemeSavePosition(position: TThemePosition; const Name: string);
-begin
-  ThemeIni.WriteInteger(Name, 'X', position.X);
-  ThemeIni.WriteInteger(Name, 'Y', position.Y);
-  ThemeIni.WriteInteger(Name, 'W', position.W);
-  ThemeIni.WriteInteger(Name, 'H', position.H);
-end;
-
-procedure TTheme.ThemeSaveStatic(static: TThemeStaticColorRectangle; const Name: string);
-begin
-  ThemeIni.WriteInteger(Name, 'X', static.X);
-  ThemeIni.WriteInteger(Name, 'Y', static.Y);
-  ThemeIni.WriteInteger(Name, 'W', static.W);
-  ThemeIni.WriteInteger(Name, 'H', static.H);
-  ThemeIni.WriteString(Name, 'Color', static.Color);
-end;
-
-procedure TTheme.ThemeSaveStatic(ThemeStatic: TThemeStatic; const Name: string);
-begin
-  ThemeIni.WriteInteger(Name, 'X', ThemeStatic.X);
-  ThemeIni.WriteInteger(Name, 'Y', ThemeStatic.Y);
-  ThemeIni.WriteInteger(Name, 'W', ThemeStatic.W);
-  ThemeIni.WriteInteger(Name, 'H', ThemeStatic.H);
-
-  ThemeIni.WriteString(Name, 'Tex', ThemeStatic.Tex);
-  ThemeIni.WriteString(Name, 'Type', TextureTypeToStr(ThemeStatic.Typ));
-  ThemeIni.WriteString(Name, 'Color', ThemeStatic.Color);
-
-  ThemeIni.WriteFloat(Name, 'TexX1', ThemeStatic.TexX1);
-  ThemeIni.WriteFloat(Name, 'TexY1', ThemeStatic.TexY1);
-  ThemeIni.WriteFloat(Name, 'TexX2', ThemeStatic.TexX2);
-  ThemeIni.WriteFloat(Name, 'TexY2', ThemeStatic.TexY2);
-end;
-
-procedure TTheme.ThemeSaveStatics(ThemeStatic: AThemeStatic; const Name: string);
-var
-  S: integer;
-begin
-  for S := 0 to High(ThemeStatic) do
-    ThemeSaveStatic(ThemeStatic[S], Name + {'Static' +} IntToStr(S+1));
-
-  ThemeIni.EraseSection(Name + {'Static' + }IntToStr(S+1));
-end;
-
-procedure TTheme.ThemeSaveText(ThemeText: TThemeText; const Name: string);
-begin
-  ThemeIni.WriteInteger(Name, 'X', ThemeText.X);
-  ThemeIni.WriteInteger(Name, 'Y', ThemeText.Y);
-
-  ThemeIni.WriteInteger(Name, 'Font', ThemeText.Font);
-  ThemeIni.WriteInteger(Name, 'Style', ThemeText.Style);
-  ThemeIni.WriteInteger(Name, 'Size', ThemeText.Size);
-  ThemeIni.WriteInteger(Name, 'Align', ThemeText.Align);
-
-  ThemeIni.WriteString(Name, 'Text', ThemeText.Text);
-  ThemeIni.WriteString(Name, 'Color', ThemeText.Color);
-
-  ThemeIni.WriteBool(Name, 'Reflection', ThemeText.Reflection);
-  ThemeIni.WriteFloat(Name, 'ReflectionSpacing', ThemeText.ReflectionSpacing);
-end;
-
-procedure TTheme.ThemeSaveTexts(ThemeText: AThemeText; const Name: string);
-var
-  T: integer;
-begin
-  for T := 0 to Length(ThemeText)-1 do
-    ThemeSaveText(ThemeText[T], Name + {'Text' + }IntToStr(T+1));
-
-  ThemeIni.EraseSection(Name + {'Text' + }IntToStr(T+1));
-end;
-
-procedure TTheme.ThemeSaveButton(ThemeButton: TThemeButton; const Name: string);
-var
-  T: integer;
-begin
-  ThemeIni.WriteString(Name, 'Tex', ThemeButton.Tex);
-  ThemeIni.WriteInteger(Name, 'X', ThemeButton.X);
-  ThemeIni.WriteInteger(Name, 'Y', ThemeButton.Y);
-  ThemeIni.WriteInteger(Name, 'W', ThemeButton.W);
-  ThemeIni.WriteInteger(Name, 'H', ThemeButton.H);
-  ThemeIni.WriteString(Name, 'Type', TextureTypeToStr(ThemeButton.Typ));
-  ThemeIni.WriteInteger(Name, 'Texts', Length(ThemeButton.Text));
-
-  ThemeIni.WriteString(Name, 'Color', ThemeButton.Color);
-
-{  ThemeButton.ColR := ThemeIni.ReadFloat(Name, 'ColR', 1);
-  ThemeButton.ColG := ThemeIni.ReadFloat(Name, 'ColG', 1);
-  ThemeButton.ColB := ThemeIni.ReadFloat(Name, 'ColB', 1);
-  ThemeButton.Int :=  ThemeIni.ReadFloat(Name, 'Int', 1);
-  ThemeButton.DColR := ThemeIni.ReadFloat(Name, 'DColR', 1);
-  ThemeButton.DColG := ThemeIni.ReadFloat(Name, 'DColG', 1);
-  ThemeButton.DColB := ThemeIni.ReadFloat(Name, 'DColB', 1);
-  ThemeButton.DInt :=  ThemeIni.ReadFloat(Name, 'DInt', 1);}
-
-{  C := ColorExists(ThemeIni.ReadString(Name, 'Color', ''));
-  if C >= 0 then
-  begin
-    ThemeButton.ColR := Color[C].RGB.R;
-    ThemeButton.ColG := Color[C].RGB.G;
-    ThemeButton.ColB := Color[C].RGB.B;
-  end;
-
-  C := ColorExists(ThemeIni.ReadString(Name, 'DColor', ''));
-  if C >= 0 then
-  begin
-    ThemeButton.DColR := Color[C].RGB.R;
-    ThemeButton.DColG := Color[C].RGB.G;
-    ThemeButton.DColB := Color[C].RGB.B;
-  end;}
-
-  for T := 0 to High(ThemeButton.Text) do
-    ThemeSaveText(ThemeButton.Text[T], Name + 'Text' + IntToStr(T+1));
-end;
-
 procedure TTheme.ThemePartyLoad;
+var
+  SectionList: TThemeSectionList;
 begin
-
-  ThemeIni := TMemIniFile.Create(Themes[Ini.Theme].FileName.ToNative);
+  OpenFile(Ini.Theme);
 
   //Party Screens:
   //Party NewRound
@@ -3985,18 +4137,19 @@ begin
   ThemeLoadStatic (PartyScore.StaticTeam3Deco, 'PartyScoreStaticTeam3Deco');
 
   //Load Party Score DecoTextures Object
-  PartyScore.DecoTextures.ChangeTextures := (ThemeIni.ReadInteger('PartyScoreDecoTextures', 'ChangeTextures', 0) = 1);
-  PartyScore.DecoTextures.FirstTexture   :=  ThemeIni.ReadString('PartyScoreDecoTextures',  'FirstTexture', '');
-  PartyScore.DecoTextures.FirstTyp       :=  ParseTextureType(ThemeIni.ReadString('PartyScoreDecoTextures', 'FirstTyp', ''), TEXTURE_TYPE_COLORIZED);
-  PartyScore.DecoTextures.FirstColor     :=  ThemeIni.ReadString('PartyScoreDecoTextures',  'FirstColor', 'Black');
+  SectionList := GetSectionList('PartyScoreDecoTextures');
+  PartyScore.DecoTextures.ChangeTextures := ReadBool(SectionList, 'ChangeTextures', false);
+  PartyScore.DecoTextures.FirstTexture   :=  ReadString(SectionList,  'FirstTexture', '');
+  PartyScore.DecoTextures.FirstTyp       :=  ParseTextureType(ReadString(SectionList, 'FirstTyp', ''), TEXTURE_TYPE_COLORIZED);
+  PartyScore.DecoTextures.FirstColor     :=  ReadString(SectionList,  'FirstColor', 'Black');
 
-  PartyScore.DecoTextures.SecondTexture  :=  ThemeIni.ReadString('PartyScoreDecoTextures',  'SecondTexture', '');
-  PartyScore.DecoTextures.SecondTyp      :=  ParseTextureType(ThemeIni.ReadString('PartyScoreDecoTextures', 'SecondTyp', ''), TEXTURE_TYPE_COLORIZED);
-  PartyScore.DecoTextures.SecondColor    :=  ThemeIni.ReadString('PartyScoreDecoTextures',  'SecondColor', 'Black');
+  PartyScore.DecoTextures.SecondTexture  :=  ReadString(SectionList,  'SecondTexture', '');
+  PartyScore.DecoTextures.SecondTyp      :=  ParseTextureType(ReadString(SectionList, 'SecondTyp', ''), TEXTURE_TYPE_COLORIZED);
+  PartyScore.DecoTextures.SecondColor    :=  ReadString(SectionList,  'SecondColor', 'Black');
 
-  PartyScore.DecoTextures.ThirdTexture   :=  ThemeIni.ReadString('PartyScoreDecoTextures',  'ThirdTexture', '');
-  PartyScore.DecoTextures.ThirdTyp       :=  ParseTextureType(ThemeIni.ReadString('PartyScoreDecoTextures', 'ThirdTyp', ''), TEXTURE_TYPE_COLORIZED);
-  PartyScore.DecoTextures.ThirdColor     :=  ThemeIni.ReadString('PartyScoreDecoTextures',  'ThirdColor', 'Black');
+  PartyScore.DecoTextures.ThirdTexture   :=  ReadString(SectionList,  'ThirdTexture', '');
+  PartyScore.DecoTextures.ThirdTyp       :=  ParseTextureType(ReadString(SectionList, 'ThirdTyp', ''), TEXTURE_TYPE_COLORIZED);
+  PartyScore.DecoTextures.ThirdColor     :=  ReadString(SectionList,  'ThirdColor', 'Black');
 
   ThemeLoadText (PartyScore.TextWinner, 'PartyScoreTextWinner');
 
@@ -4022,86 +4175,140 @@ begin
 
   ThemeLoadText (PartyWin.TextWinner,        'PartyWinTextWinner');
 
-
-  ThemeIni.Free;
-
+  CloseFile;
 end;
 
-procedure TTheme.ThemeScoreLoad;
+procedure TTheme.ThemeScoreLoadData;
 var
   I: integer;
-  prefix: string;
+  ScreenCount: integer;
+  LayoutPlayerCount: integer;
+  LayoutPlayerIndex: integer;
+  SectionList: TThemeSectionList;
+  BaseTemplate: TScoreSlotThemeTemplate;
+  BaseBounds: TPlayerSlotRect;
+  LayoutBounds: TPlayerSlotRect;
 begin
-
-  ThemeIni := TMemIniFile.Create(Themes[Ini.Theme].FileName.ToNative);
-
   // Score
+  Score.Free;
+  Score := TThemeScore.Create;
+  SetLength(Score.PlayerStatic, UIni.PlayerCapacity + 1);
+  SetLength(Score.PlayerTexts, UIni.PlayerCapacity + 1);
+  SetLength(Score.TextName, UIni.PlayerCapacity + 1);
+  SetLength(Score.TextScore, UIni.PlayerCapacity + 1);
+  SetLength(Score.AvatarStatic, UIni.PlayerCapacity + 1);
+  SetLength(Score.TextNotes, UIni.PlayerCapacity + 1);
+  SetLength(Score.TextNotesScore, UIni.PlayerCapacity + 1);
+  SetLength(Score.TextLineBonus, UIni.PlayerCapacity + 1);
+  SetLength(Score.TextLineBonusScore, UIni.PlayerCapacity + 1);
+  SetLength(Score.TextGoldenNotes, UIni.PlayerCapacity + 1);
+  SetLength(Score.TextGoldenNotesScore, UIni.PlayerCapacity + 1);
+  SetLength(Score.TextTotal, UIni.PlayerCapacity + 1);
+  SetLength(Score.TextTotalScore, UIni.PlayerCapacity + 1);
+  SetLength(Score.StaticBoxLightest, UIni.PlayerCapacity + 1);
+  SetLength(Score.StaticBoxLight, UIni.PlayerCapacity + 1);
+  SetLength(Score.StaticBoxDark, UIni.PlayerCapacity + 1);
+  SetLength(Score.StaticRatings, UIni.PlayerCapacity + 1);
+  SetLength(Score.StaticBackLevel, UIni.PlayerCapacity + 1);
+  SetLength(Score.StaticBackLevelRound, UIni.PlayerCapacity + 1);
+  SetLength(Score.StaticLevel, UIni.PlayerCapacity + 1);
+  SetLength(Score.StaticLevelRound, UIni.PlayerCapacity + 1);
+
   ThemeLoadBasic(Score, 'Score');
 
   ThemeLoadText(Score.TextArtist, 'ScoreTextArtist');
   ThemeLoadText(Score.TextTitle, 'ScoreTextTitle');
   ThemeLoadText(Score.TextArtistTitle, 'ScoreTextArtistTitle');
+  SectionList := GetSectionList('ScorePlayerSlotArea');
+  if Length(SectionList) = 0 then
+    SectionList := GetSectionList('ScorePlayerLayout');
+  Score.PlayerLayoutArea.X := ReadInteger(SectionList, 'AreaX', ReadInteger(SectionList, 'X', 20));
+  Score.PlayerLayoutArea.Y := ReadInteger(SectionList, 'AreaY', ReadInteger(SectionList, 'Y', 110));
+  Score.PlayerLayoutArea.W := ReadInteger(SectionList, 'AreaW', ReadInteger(SectionList, 'W', 760));
+  Score.PlayerLayoutArea.H := ReadInteger(SectionList, 'AreaH', ReadInteger(SectionList, 'H', 420));
+  Score.PlayerLayoutExtraColsBias := ReadInteger(SectionList, 'ExtraColsBias', 0);
 
-  if (Ini.Players < 3) or (Ini.Screens = 1) then
-    prefix := ''
+  for I := 1 to UIni.PlayerCapacity do
+  begin
+    SetLength(Score.PlayerStatic[I], 0);
+    SetLength(Score.PlayerTexts[I], 0);
+    Score.TextName[I] := Default(TThemeText);
+    Score.TextScore[I] := Default(TThemeText);
+    Score.AvatarStatic[I] := Default(TThemeStatic);
+    Score.TextNotes[I] := Default(TThemeText);
+    Score.TextNotesScore[I] := Default(TThemeText);
+    Score.TextLineBonus[I] := Default(TThemeText);
+    Score.TextLineBonusScore[I] := Default(TThemeText);
+    Score.TextGoldenNotes[I] := Default(TThemeText);
+    Score.TextGoldenNotesScore[I] := Default(TThemeText);
+    Score.TextTotal[I] := Default(TThemeText);
+    Score.TextTotalScore[I] := Default(TThemeText);
+    Score.StaticBoxLightest[I] := Default(TThemeStatic);
+    Score.StaticBoxLight[I] := Default(TThemeStatic);
+    Score.StaticBoxDark[I] := Default(TThemeStatic);
+    Score.StaticRatings[I] := Default(TThemeStatic);
+    Score.StaticBackLevel[I] := Default(TThemeStatic);
+    Score.StaticBackLevelRound[I] := Default(TThemeStatic);
+    Score.StaticLevel[I] := Default(TThemeStatic);
+    Score.StaticLevelRound[I] := Default(TThemeStatic);
+  end;
+
+  ThemeLoadStatics(BaseTemplate.PlayerStatic,      'ScorePlayerTemplateStatic');
+  ThemeLoadTexts(BaseTemplate.PlayerTexts,         'ScorePlayerTemplateText');
+  ThemeLoadStatic(BaseTemplate.AvatarStatic,       'ScorePlayerTemplateAvatar');
+  ThemeLoadText(BaseTemplate.TextName,             'ScorePlayerTemplateTextName');
+  ThemeLoadText(BaseTemplate.TextScore,            'ScorePlayerTemplateTextScore');
+  ThemeLoadText(BaseTemplate.TextNotes,            'ScorePlayerTemplateTextNotes');
+  ThemeLoadText(BaseTemplate.TextNotesScore,       'ScorePlayerTemplateTextNotesScore');
+  ThemeLoadText(BaseTemplate.TextLineBonus,        'ScorePlayerTemplateTextLineBonus');
+  ThemeLoadText(BaseTemplate.TextLineBonusScore,   'ScorePlayerTemplateTextLineBonusScore');
+  ThemeLoadText(BaseTemplate.TextGoldenNotes,      'ScorePlayerTemplateTextGoldenNotes');
+  ThemeLoadText(BaseTemplate.TextGoldenNotesScore, 'ScorePlayerTemplateTextGoldenNotesScore');
+  ThemeLoadText(BaseTemplate.TextTotal,            'ScorePlayerTemplateTextTotal');
+  ThemeLoadText(BaseTemplate.TextTotalScore,       'ScorePlayerTemplateTextTotalScore');
+  ThemeLoadStatic(BaseTemplate.StaticBoxLightest,  'ScorePlayerTemplateStaticBoxLightest');
+  ThemeLoadStatic(BaseTemplate.StaticBoxLight,     'ScorePlayerTemplateStaticBoxLight');
+  ThemeLoadStatic(BaseTemplate.StaticBoxDark,      'ScorePlayerTemplateStaticBoxDark');
+  ThemeLoadStatic(BaseTemplate.StaticBackLevel,    'ScorePlayerTemplateStaticBackLevel');
+  ThemeLoadStatic(BaseTemplate.StaticBackLevelRound, 'ScorePlayerTemplateStaticBackLevelRound');
+  ThemeLoadStatic(BaseTemplate.StaticLevel,        'ScorePlayerTemplateStaticLevel');
+  ThemeLoadStatic(BaseTemplate.StaticLevelRound,   'ScorePlayerTemplateStaticLevelRound');
+  ThemeLoadStatic(BaseTemplate.StaticRatings,      'ScorePlayerTemplateStaticRatingPicture');
+  for I := 1 to High(Score.ButtonSend) do
+    ThemeLoadButton(Score.ButtonSend[I], 'ScoreButtonSend' + IntToStr(I));
+  ThemeLoadStatic(Score.StaticNavigate, 'ScoreStaticNavigate');
+  ThemeLoadText(Score.TextNavigate, 'ScoreTextNavigate');
+
+  BaseBounds := GetScoreTemplateBounds(BaseTemplate);
+
+  ScreenCount := Ini.Screens + 1;
+  if ScreenCount > 1 then
+    LayoutPlayerCount := GetScreenPlayerCount(UIni.IPlayersVals[Ini.Players], ScreenCount, 1)
   else
-  begin
-    // 4 players 1 screen
-    if (Ini.Players = 3) then
-      prefix := 'FourP';
+    LayoutPlayerCount := UIni.IPlayersVals[Ini.Players];
+  LayoutBounds := GetThemePlayerScoreLayoutBounds(BaseBounds, Score.PlayerLayoutArea, LayoutPlayerCount);
+  for LayoutPlayerIndex := 0 to LayoutPlayerCount - 1 do
+    AssignScoreThemeSlot(Score, BaseTemplate, BaseBounds, LayoutBounds, LayoutPlayerCount, LayoutPlayerIndex, LayoutPlayerIndex + 1);
+end;
 
-    // 6 players 1 screen
-    if (Ini.Players = 4) then
-      prefix := 'SixP';
-  end;
-
-  for I := 1 to 6 do
-  begin
-    ThemeLoadStatics(Score.PlayerStatic[I],        'Score' + prefix + 'Player' + IntToStr(I) + 'Static');
-    ThemeLoadTexts(Score.PlayerTexts[I],           'Score' + prefix + 'Player' + IntToStr(I) + 'Text');
-    ThemeLoadStatic(Score.AvatarStatic[I],         'Score' + prefix + 'Player' + IntToStr(I) + 'Avatar');
-
-    ThemeLoadText(Score.TextName[I],               'Score' + prefix + 'TextName'             + IntToStr(I));
-    ThemeLoadText(Score.TextScore[I],              'Score' + prefix + 'TextScore'            + IntToStr(I));
-    ThemeLoadText(Score.TextNotes[I],              'Score' + prefix + 'TextNotes'            + IntToStr(I));
-    ThemeLoadText(Score.TextNotesScore[I],         'Score' + prefix + 'TextNotesScore'       + IntToStr(I));
-    ThemeLoadText(Score.TextLineBonus[I],          'Score' + prefix + 'TextLineBonus'        + IntToStr(I));
-    ThemeLoadText(Score.TextLineBonusScore[I],     'Score' + prefix + 'TextLineBonusScore'   + IntToStr(I));
-    ThemeLoadText(Score.TextGoldenNotes[I],        'Score' + prefix + 'TextGoldenNotes'      + IntToStr(I));
-    ThemeLoadText(Score.TextGoldenNotesScore[I],   'Score' + prefix + 'TextGoldenNotesScore' + IntToStr(I));
-    ThemeLoadText(Score.TextTotal[I],              'Score' + prefix + 'TextTotal'            + IntToStr(I));
-    ThemeLoadText(Score.TextTotalScore[I],         'Score' + prefix + 'TextTotalScore'       + IntToStr(I));
-
-    ThemeLoadStatic(Score.StaticBoxLightest[I],    'Score' + prefix + 'StaticBoxLightest'    + IntToStr(I));
-    ThemeLoadStatic(Score.StaticBoxLight[I],       'Score' + prefix + 'StaticBoxLight'       + IntToStr(I));
-    ThemeLoadStatic(Score.StaticBoxDark[I],        'Score' + prefix + 'StaticBoxDark'        + IntToStr(I));
-
-    ThemeLoadStatic(Score.StaticBackLevel[I],      'Score' + prefix + 'StaticBackLevel'      + IntToStr(I));
-    ThemeLoadStatic(Score.StaticBackLevelRound[I], 'Score' + prefix + 'StaticBackLevelRound' + IntToStr(I));
-    ThemeLoadStatic(Score.StaticLevel[I],          'Score' + prefix + 'StaticLevel'          + IntToStr(I));
-    ThemeLoadStatic(Score.StaticLevelRound[I],     'Score' + prefix + 'StaticLevelRound'     + IntToStr(I));
-    ThemeLoadStatic(Score.StaticRatings[I],        'Score' + prefix + 'StaticRatingPicture'  + IntToStr(I));
-  end;
-
-  ThemeIni.Free;
+procedure TTheme.ThemeScoreLoad;
+begin
+  OpenFile(Ini.Theme);
+  ThemeScoreLoadData;
+  CloseFile;
 end;
 
 procedure TTheme.ThemeSongLoad;
 var
   I, C: integer;
   prefix: string;
+  SectionLIst: TThemeSectionList;
 begin
   case (TSongMenuMode(Ini.SongMenu)) of
     smRoulette: prefix := 'Roulette';
     smChessboard: prefix := 'Chessboard';
-    smCarousel: prefix := 'Carousel';
-    smSlotMachine: prefix := 'SlotMachine';
-    smSlide: prefix := 'Slide';
-    smList: prefix := 'List';
-    smMosaic: prefix := 'Mosaic';
+    else prefix := 'List';
   end;
-
-  ThemeIni := TMemIniFile.Create(Themes[Ini.Theme].FileName.ToNative);
 
   // Song
   ThemeLoadBasic(Song, 'Song' + prefix);
@@ -4112,7 +4319,8 @@ begin
   ThemeLoadText(Song.TextYear, 'Song' + prefix + 'TextYear');
 
   // medley playlist
-  Song.TextMedleyMax := ThemeIni.ReadInteger('Song' + prefix + 'TextMedleyMax', 'N', 4);
+  SectionList := GetSectionList('Song' + prefix + 'TextMedleyMax');
+  Song.TextMedleyMax := ReadInteger(SectionList, 'N', 4);
 
   SetLength(Song.TextArtistMedley, Song.TextMedleyMax);
   SetLength(Song.TextTitleMedley, Song.TextMedleyMax);
@@ -4146,66 +4354,58 @@ begin
   ThemeLoadText(Song.TextCat, 'Song' + prefix + 'TextCat');
 
   //Load Cover Pos and Size from Theme Mod
-  Song.Cover.X := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'X', 300);
-  Song.Cover.Y := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'Y', 190);
-  Song.Cover.W := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'W', 300);
-  Song.Cover.H := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'H', 200);
+  SectionList := GetSectionList('Song' + prefix + 'Cover');
+  Song.Cover.X := ReadInteger(SectionList, 'X', 300);
+  Song.Cover.Y := ReadInteger(SectionList, 'Y', 190);
+  Song.Cover.W := ReadInteger(SectionList, 'W', 300);
+  Song.Cover.H := ReadInteger(SectionList, 'H', 200);
 
-  // 0 - roulette
-  // 1 - chessboard
-  // 2 - carousel
-  // 3 - slotmachine
-  // 4 - slide
-  // 5 - list
-  // 6 - mosaic
-  
-  if (TSongMenuMode(Ini.SongMenu) in [smChessboard, smMosaic]) then
+  // Song menu modes: 0 - roulette, 1 - chessboard, 2 - list
+
+  if (TSongMenuMode(Ini.SongMenu) = smChessboard) then
   begin
-    Song.Cover.Rows := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'Rows', 4);
-    Song.Cover.Cols := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'Cols', 4);
-    Song.Cover.Padding := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'Padding', 0);
-    Song.Cover.SelectX := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'SelectX', 300);
-    Song.Cover.SelectY := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'SelectY', 120);
-    Song.Cover.SelectW := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'SelectW', 325);
-    Song.Cover.SelectH := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'SelectH', 200);
-    Song.Cover.SelectReflection := ThemeIni.ReadBool('Song' + prefix + 'Cover', 'SelectReflection', false);
-    Song.Cover.SelectReflectionSpacing := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'SelectReflectionSpacing', 0);
-    Song.Cover.ZoomThumbW := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'ZoomThumbW', 120);
-    Song.Cover.ZoomThumbH := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'ZoomThumbH', 120);
-    Song.Cover.ZoomThumbStyle := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'ZoomThumbStyle', 0);
-    Song.Cover.Tex := ThemeIni.ReadString('Song' + prefix + 'Cover',  'Text', '');
+    Song.Cover.Rows := ReadInteger(SectionList, 'Rows', 4);
+    Song.Cover.Cols := ReadInteger(SectionList, 'Cols', 4);
+    Song.Cover.Padding := ReadInteger(SectionList, 'Padding', 0);
+    Song.Cover.SelectX := ReadInteger(SectionList, 'SelectX', 300);
+    Song.Cover.SelectY := ReadInteger(SectionList, 'SelectY', 120);
+    Song.Cover.SelectW := ReadInteger(SectionList, 'SelectW', 325);
+    Song.Cover.SelectH := ReadInteger(SectionList, 'SelectH', 200);
+    Song.Cover.SelectReflection := ReadBool(SectionList, 'SelectReflection', false);
+    Song.Cover.SelectReflectionSpacing := ReadInteger(SectionList, 'SelectReflectionSpacing', 0);
+    Song.Cover.ZoomThumbW := ReadInteger(SectionList, 'ZoomThumbW', 120);
+    Song.Cover.ZoomThumbH := ReadInteger(SectionList, 'ZoomThumbH', 120);
+    Song.Cover.ZoomThumbStyle := ReadInteger(SectionList, 'ZoomThumbStyle', 0);
+    Song.Cover.Tex := ReadString(SectionList,  'Text', '');
   end;
 
-  if (TSongMenuMode(Ini.SongMenu) in [smCarousel, smSlide]) then
-  begin
-    Song.Cover.Padding := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'Padding', 60);
-  end;
 
   if (TSongMenuMode(Ini.SongMenu) = smList) then
   begin
-    Song.Cover.SelectX := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'SelectX', 300);
-    Song.Cover.SelectY := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'SelectY', 120);
-    Song.Cover.SelectW := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'SelectW', 325);
-    Song.Cover.SelectH := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'SelectH', 200);
-    Song.Cover.SelectReflection := ThemeIni.ReadBool('Song' + prefix + 'Cover', 'SelectReflection', false);
-    Song.Cover.SelectReflectionSpacing := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'SelectReflectionSpacing', 0);
-    Song.Cover.Padding := ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'Padding', 4);
+    Song.Cover.SelectX := ReadInteger(SectionList, 'SelectX', 300);
+    Song.Cover.SelectY := ReadInteger(SectionList, 'SelectY', 120);
+    Song.Cover.SelectW := ReadInteger(SectionList, 'SelectW', 325);
+    Song.Cover.SelectH := ReadInteger(SectionList, 'SelectH', 200);
+    Song.Cover.SelectReflection := ReadBool(SectionList, 'SelectReflection', false);
+    Song.Cover.SelectReflectionSpacing := ReadInteger(SectionList, 'SelectReflectionSpacing', 0);
+    Song.Cover.Padding := ReadInteger(SectionList, 'Padding', 4);
 
-    Song.ListCover.Rows := ThemeIni.ReadInteger('Song' + prefix + 'SelectSong', 'Rows', 5);
-    Song.ListCover.X := ThemeIni.ReadInteger('Song' + prefix + 'SelectSong', 'X', 300);
-    Song.ListCover.Y := ThemeIni.ReadInteger('Song' + prefix + 'SelectSong', 'Y', 120);
-    Song.ListCover.W := ThemeIni.ReadInteger('Song' + prefix + 'SelectSong', 'W', 325);
-    Song.ListCover.H := ThemeIni.ReadInteger('Song' + prefix + 'SelectSong', 'H', 200);
-    Song.ListCover.Z := ThemeIni.ReadInteger('Song' + prefix + 'SelectSong', 'Z', 1);
-    Song.ListCover.Reflection := ThemeIni.ReadBool('Song' + prefix + 'SelectSong', 'Reflection', false);
-    Song.ListCover.ReflectionSpacing := ThemeIni.ReadInteger('Song' + prefix + 'SelectSong', 'ReflectionSpacing', 0);
-    Song.ListCover.Padding := ThemeIni.ReadInteger('Song' + prefix + 'SelectSong', 'Padding', 4);
+    SectionList := GetSectionList('Song' + prefix + 'SelectSong');
+    Song.ListCover.Rows := ReadInteger(SectionList, 'Rows', 5);
+    Song.ListCover.X := ReadInteger(SectionList, 'X', 300);
+    Song.ListCover.Y := ReadInteger(SectionList, 'Y', 120);
+    Song.ListCover.W := ReadInteger(SectionList, 'W', 325);
+    Song.ListCover.H := ReadInteger(SectionList, 'H', 200);
+    Song.ListCover.Z := ReadInteger(SectionList, 'Z', 1);
+    Song.ListCover.Reflection := ReadBool(SectionList, 'Reflection', false);
+    Song.ListCover.ReflectionSpacing := ReadInteger(SectionList, 'ReflectionSpacing', 0);
+    Song.ListCover.Padding := ReadInteger(SectionList, 'Padding', 4);
 
-    Song.ListCover.Typ   := ParseTextureType(ThemeIni.ReadString('Song' + prefix + 'SelectSong', 'Type', ''), TEXTURE_TYPE_PLAIN);
-    Song.ListCover.Tex := ThemeIni.ReadString('Song' + prefix + 'SelectSong', 'Tex', '');
-    Song.ListCover.DTex := ThemeIni.ReadString('Song' + prefix + 'SelectSong', 'DTex', '');
+    Song.ListCover.Typ   := ParseTextureType(ReadString(SectionList, 'Type', ''), TEXTURE_TYPE_PLAIN);
+    Song.ListCover.Tex := ReadString(SectionList, 'Tex', '');
+    Song.ListCover.DTex := ReadString(SectionList, 'DTex', '');
 
-    Song.ListCover.Color := ThemeIni.ReadString('Song' + prefix + 'SelectSong', 'Color', '');
+    Song.ListCover.Color := ReadString(SectionList, 'Color', '');
 
     C := ColorExists(Song.ListCover.Color);
     if C >= 0 then
@@ -4215,7 +4415,7 @@ begin
       Song.ListCover.ColB := Color[C].RGB.B;
     end;
 
-    Song.ListCover.DColor := ThemeIni.ReadString('Song' + prefix + 'SelectSong', 'DColor', '');
+    Song.ListCover.DColor := ReadString(SectionList, 'DColor', '');
 
     C := ColorExists(Song.ListCover.DColor);
     if C >= 0 then
@@ -4228,7 +4428,8 @@ begin
   end;
 
   //  Song.Cover.Style := ThemeIni.ReadInteger('SongCover', 'Style', 4);
-  Song.Cover.Reflections := (ThemeIni.ReadInteger('Song' + prefix + 'Cover', 'Reflections', 0) = 1);
+  SectionList := GetSectionList('Song' + prefix + 'Cover');
+  Song.Cover.Reflections := ReadBool(SectionList, 'Reflections', false);
   //Load Cover Pos and Size from Theme Mod End
 
   ThemeLoadEqualizer(Song.Equalizer, 'Song' + prefix + 'Equalizer');
@@ -4253,24 +4454,12 @@ begin
 
   // Duet Singers
   ThemeLoadStatic (Song.Static2PlayersDuetSingerP1, 'Song' + prefix + 'Static2PlayersDuetSingerP1');
-  ThemeLoadStatic (Song.Static2PlayersDuetSingerP2, 'Song' + prefix + 'Static2PlayersDuetSingerP2');
   ThemeLoadText (Song.Text2PlayersDuetSingerP1, 'Song' + prefix + 'Text2PlayersDuetSingerP1');
-  ThemeLoadText (Song.Text2PlayersDuetSingerP2, 'Song' + prefix + 'Text2PlayersDuetSingerP2');
-
-  ThemeLoadStatic (Song.Static3PlayersDuetSingerP1, 'Song' + prefix + 'Static3PlayersDuetSingerP1');
-  ThemeLoadStatic (Song.Static3PlayersDuetSingerP2, 'Song' + prefix + 'Static3PlayersDuetSingerP2');
-  ThemeLoadStatic (Song.Static3PlayersDuetSingerP3, 'Song' + prefix + 'Static3PlayersDuetSingerP3');
-  ThemeLoadText (Song.Text3PlayersDuetSingerP1, 'Song' + prefix + 'Text3PlayersDuetSingerP1');
-  ThemeLoadText (Song.Text3PlayersDuetSingerP2, 'Song' + prefix + 'Text3PlayersDuetSingerP2');
-  ThemeLoadText (Song.Text3PlayersDuetSingerP3, 'Song' + prefix + 'Text3PlayersDuetSingerP3');
-
-  // 4/6 players 1 screen
-  ThemeLoadStatic (Song.Static4PlayersDuetSingerP3, 'Song' + prefix + 'Static4PlayersDuetSingerP3');
-  ThemeLoadStatic (Song.Static4PlayersDuetSingerP4, 'Song' + prefix + 'Static4PlayersDuetSingerP4');
-
-  ThemeLoadStatic (Song.Static6PlayersDuetSingerP4, 'Song' + prefix + 'Static6PlayersDuetSingerP4');
-  ThemeLoadStatic (Song.Static6PlayersDuetSingerP5, 'Song' + prefix + 'Static6PlayersDuetSingerP5');
-  ThemeLoadStatic (Song.Static6PlayersDuetSingerP6, 'Song' + prefix + 'Static6PlayersDuetSingerP6');
+  SectionList := GetSectionList('Song' + prefix + 'DuetSingerArea');
+  Song.DuetSingerArea.X := ReadInteger(SectionList, 'X', Song.Static2PlayersDuetSingerP1.X);
+  Song.DuetSingerArea.Y := ReadInteger(SectionList, 'Y', Song.Static2PlayersDuetSingerP1.Y);
+  Song.DuetSingerArea.W := ReadInteger(SectionList, 'W', Song.Static2PlayersDuetSingerP1.W);
+  Song.DuetSingerArea.H := ReadInteger(SectionList, 'H', Song.Static2PlayersDuetSingerP1.H);
 
   //Party Mode
   ThemeLoadStatic(Song.StaticTeam1Joker1, 'Song' + prefix + 'StaticTeam1Joker1');
@@ -4291,10 +4480,16 @@ begin
   ThemeLoadStatic(Song.StaticTeam3Joker4, 'Song' + prefix + 'StaticTeam3Joker4');
   ThemeLoadStatic(Song.StaticTeam3Joker5, 'Song' + prefix + 'StaticTeam3Joker5');
 
-  ThemeLoadText (Song.TextPartyTime, 'Song' + prefix + 'TextPartyTime');
 
   ThemeLoadText (Song.InfoMessageText, 'Song' + prefix + 'InfoMessageText');
   ThemeLoadStatic (Song.InfoMessageBG, 'Song' + prefix + 'InfoMessageBG');
+end;
+
+procedure TTheme.ThemeSongReload;
+begin
+  OpenFile(Ini.Theme);
+  ThemeSongLoad;
+  CloseFile;
 end;
 
 procedure TTheme.CreateThemeObjects();
@@ -4307,9 +4502,6 @@ begin
 
   freeandnil(Name);
   Name := TThemeName.Create;
-
-  freeandnil(Level);
-  Level := TThemeLevel.Create;
 
   freeandnil(Song);
   Song := TThemeSong.Create;
@@ -4329,44 +4521,14 @@ begin
   freeandnil(Score);
   Score := TThemeScore.Create;
 
-  freeandnil(Top5);
-  Top5 := TThemeTop5.Create;
+  freeandnil(HighScores);
+  HighScores := TThemeHighScores.Create;
 
   freeandnil(Options);
   Options := TThemeOptions.Create;
 
-  freeandnil(OptionsGame);
-  OptionsGame := TThemeOptionsGame.Create;
-
-  freeandnil(OptionsGraphics);
-  OptionsGraphics := TThemeOptionsGraphics.Create;
-
-  freeandnil(OptionsSound);
-  OptionsSound := TThemeOptionsSound.Create;
-
-  freeandnil(OptionsInput);
-  OptionsInput := TThemeOptionsInput.Create;
-
-  freeandnil(OptionsLyrics);
-  OptionsLyrics := TThemeOptionsLyrics.Create;
-
-  freeandnil(OptionsThemes);
-  OptionsThemes := TThemeOptionsThemes.Create;
-
-  freeandnil(OptionsRecord);
-  OptionsRecord := TThemeOptionsRecord.Create;
-
-  freeandnil(OptionsAdvanced);
-  OptionsAdvanced := TThemeOptionsAdvanced.Create;
-
-  freeandnil(OptionsNetwork);
-  OptionsNetwork := TThemeOptionsNetwork.Create;
-
-  freeandnil(OptionsWebcam);
-  OptionsWebcam := TThemeOptionsWebcam.Create;
-
-  freeandnil(OptionsJukebox);
-  OptionsJukebox := TThemeOptionsJukebox.Create;
+  freeandnil(OptionsSub);
+  OptionsSub := TThemeOptionsSub.Create;
 
   freeandnil(Edit);
   Edit := TThemeEdit.Create;

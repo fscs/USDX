@@ -44,10 +44,13 @@ uses
   sdl2;
 
 type
-  TScreenOptionsThemes = class(TMenu)
+  TScreenOptionsThemes = class(TOptionsMenu)
     private
       procedure ReloadTheme;
       procedure ReloadScreens;
+
+    protected
+      procedure LoadWidgets; override;
 
     public
       ActualTheme:  Integer;
@@ -71,12 +74,23 @@ implementation
 uses 
   UGraphic,
   UHelp,
+  ULanguage,
   ULog,
   UMain,
   UPathUtils,
+  URecord,
+  URenderer,
   USkins,
   UUnicodeUtils,
   SysUtils;
+
+type
+  InteractionID = (
+    iThemeSlide,
+    iSkinSlide,
+    iColorSlide,
+    iBackButton
+  );
 
 function TScreenOptionsThemes.ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean;
 begin
@@ -104,7 +118,7 @@ begin
           AudioPlayback.PlaySound(SoundLib.Back);
 
           // select theme button in new created options screen
-          ScreenOptions.Interaction := 4;
+          ScreenOptions.Interaction := 5;
 
           FadeTo(@ScreenOptions);
         end;
@@ -114,7 +128,7 @@ begin
         end;
       SDLK_RETURN:
         begin
-          if SelInteraction = 3 then
+          if SelInteraction = ord(iBackButton) then
           begin
             Ini.Save;
 
@@ -123,7 +137,7 @@ begin
             AudioPlayback.PlaySound(SoundLib.Back);
 
             // select theme button in new created options screen
-            ScreenOptions.Interaction := 4;
+            ScreenOptions.Interaction := 5;
 
             FadeTo(@ScreenOptions);
           end;
@@ -134,7 +148,7 @@ begin
         InteractPrev;
       SDLK_RIGHT:
         begin
-          if (SelInteraction >= 0) and (SelInteraction <= 2) then
+          if (Interactions[SelInteraction].Typ = iSelectS) then
           begin
             AudioPlayback.PlaySound(SoundLib.Option);
             InteractInc;
@@ -142,7 +156,7 @@ begin
         end;
       SDLK_LEFT:
         begin
-          if (SelInteraction >= 0) and (SelInteraction <= 2) then
+          if (Interactions[SelInteraction].Typ = iSelectS) then
           begin
             AudioPlayback.PlaySound(SoundLib.Option);
             InteractDec;
@@ -157,17 +171,17 @@ begin
   inherited InteractInc;
 
   //Update Skins
-  if (SelInteraction = 0) then
+  if (SelInteraction = ord(iThemeSlide)) then
   begin
     Skin.OnThemeChange;
-    UpdateSelectSlideOptions(Theme.OptionsThemes.SelectSkin, SkinSelect, ISkin, Ini.SkinNo);
+    UpdateSelectSlideOptions(SkinSelect, ISkin, Ini.SkinNo);
 
     // set skin to themes default skin
     Ini.SkinNo := Theme.Themes[Ini.Theme].DefaultSkin;
   end;
 
   { set skins default color }
-  if (SelInteraction = 0) or (SelInteraction = 1) then
+  if (SelInteraction = ord(iThemeSlide)) or (SelInteraction = ord(iSkinSlide)) then
   begin
     Ini.Color := Skin.GetDefaultColor(Ini.SkinNo);
   end;
@@ -180,17 +194,17 @@ begin
   inherited InteractDec;
 
   //Update Skins
-  if (SelInteraction = 0 ) then
+  if (SelInteraction = ord(iThemeSlide) ) then
   begin
     Skin.OnThemeChange;
-    UpdateSelectSlideOptions (Theme.OptionsThemes.SelectSkin, SkinSelect, ISkin, Ini.SkinNo);
+    UpdateSelectSlideOptions(SkinSelect, ISkin, Ini.SkinNo);
 
     // set skin to themes default skin
     Ini.SkinNo := Theme.Themes[Ini.Theme].DefaultSkin;
   end;
 
   { set skins default color }
-  if (SelInteraction = 0) or (SelInteraction = 1) then
+  if (SelInteraction = ord(iThemeSlide)) or (SelInteraction = ord(iSkinSlide)) then
   begin
     Ini.Color := Skin.GetDefaultColor(Ini.SkinNo);
   end;
@@ -201,25 +215,9 @@ end;
 constructor TScreenOptionsThemes.Create;
 begin
   inherited Create;
-
-  LoadFromTheme(Theme.OptionsThemes);
-
-  Theme.OptionsThemes.SelectTheme.showArrows := true;
-  Theme.OptionsThemes.SelectTheme.oneItemOnly := true;
-  AddSelectSlide(Theme.OptionsThemes.SelectTheme, Ini.Theme, ITheme);
-
-  Theme.OptionsThemes.SelectSkin.showArrows := true;
-  Theme.OptionsThemes.SelectSkin.oneItemOnly := true;
-  SkinSelect := AddSelectSlide(Theme.OptionsThemes.SelectSkin, Ini.SkinNo, ISkin);
-
-  Theme.OptionsThemes.SelectColor.showArrows := true;
-  Theme.OptionsThemes.SelectColor.oneItemOnly := true;
-  AddSelectSlide(Theme.OptionsThemes.SelectColor, Ini.Color, IColorTranslated);
-
-  AddButton(Theme.OptionsThemes.ButtonExit);
-  if (Length(Button[0].Text)=0) then
-    AddButtonText(20, 5, Theme.Options.Description[OPTIONS_DESC_INDEX_BACK]);
-
+  Description := Language.Translate('SING_OPTIONS_THEMES_DESC');
+  WhereAmI := Language.Translate('SING_OPTIONS_THEMES_WHEREAMI');
+  Load;
 end;
 
 procedure TScreenOptionsThemes.OnShow;
@@ -248,7 +246,7 @@ begin
   ScreenOptionsThemes.Draw;
 
   Display.Draw;
-  SwapBuffers;
+  Renderer.SwapBuffers;
 
   ScreenOptionsThemes.ActualTheme := self.ActualTheme;
   ScreenOptionsThemes.ActualSkin := self.ActualSkin;
@@ -267,7 +265,16 @@ begin
     UGraphic.UnLoadScreens();
     UGraphic.LoadScreens(USDXVersionStr);
     Ini.Load;
+    AudioInputProcessor.UpdateInputDeviceConfig();
   end;
+end;
+
+procedure TScreenOptionsThemes.LoadWidgets;
+begin
+  // when editing this, also update the InteractionID enum declaration
+  AddSelectSlide('SING_OPTIONS_THEMES_THEME', Ini.Theme, ITheme);
+  SkinSelect := AddSelectSlide('SING_OPTIONS_THEMES_SKIN', Ini.SkinNo, ISkin);
+  AddSelectSlide('SING_OPTIONS_THEMES_COLOR', Ini.Color, IColorTranslated);
 end;
 
 end.

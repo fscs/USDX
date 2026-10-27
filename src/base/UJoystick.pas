@@ -286,8 +286,8 @@ function HasJoyStick: boolean;
 
 procedure OnJoystickPollEvent(Event: TSDL_event);
 
-function ifthen(val:boolean;const iftrue:TJoyButtonState; const iffalse:TJoyButtonState = bsReleased): TJoyButtonState; inline; overload;
-function ifthen(val:boolean;const iftrue:TSDL_KeyCode; const iffalse:TSDL_KeyCode = 0): TSDL_KeyCode; inline; overload;
+function ifthen(val:boolean;const iftrue:TJoyButtonState; const iffalse:TJoyButtonState = bsReleased): TJoyButtonState; overload;
+function ifthen(val:boolean;const iftrue:TSDL_KeyCode; const iffalse:TSDL_KeyCode = 0): TSDL_KeyCode; overload;
 
 function MouseRepeatHandlerFunc(Data: Pointer): integer; cdecl;// forward;
 
@@ -323,18 +323,19 @@ begin
   // sanity check
   if (Joy = nil) then Exit;
 
+  // the LogDebug statements here are commented out because this is extremely spammy if a joystick/controller is used
   case Event.type_ of
   SDL_JOYAXISMOTION:
     with Event.jaxis do
     begin
-      Log.LogDebug(Format('JOYAXISMOTION [%d] Axis:%d  Value:%d  Time:%d', [which, axis, value, timestamp]), 'TJoy.Polling');
+      // Log.LogDebug(Format('JOYAXISMOTION [%d] Axis:%d  Value:%d  Time:%d', [which, axis, value, timestamp]), 'TJoy.Polling');
       Joy.OnControllerMotion(which, axis, EnsureRange((1.0*value) / JOYSTICK_AXIS_MAX_RANGE, -1.0, 1.0), timestamp, true);
     end;
 
   SDL_JOYHATMOTION:
     with Event.jhat do
     begin
-      Log.LogDebug(Format('JOYHATMOTION [%d] Pad:%d  Value:%d  Time:%d', [which, hat, value, timestamp]), 'TJoy.Polling');
+      // Log.LogDebug(Format('JOYHATMOTION [%d] Pad:%d  Value:%d  Time:%d', [which, hat, value, timestamp]), 'TJoy.Polling');
       Joy.OnControllerDPad(which, hat, ifthen(value and SDL_HAT_LEFT <> 0, -1, ifthen(value and SDL_HAT_RIGHT <> 0, 1, 0)),
                                        ifthen(value and SDL_HAT_DOWN <> 0, -1, ifthen(value and SDL_HAT_UP <> 0, 1, 0)),
                                        true);
@@ -342,42 +343,42 @@ begin
   SDL_JOYBUTTONUP, SDL_JOYBUTTONDOWN:
     with Event.jbutton do
     begin
-      Log.LogDebug(Format('JOYBUTTON [%d] Button:%d  State:%d  Type:%d  Time:%d', [which, button, state, type_, timestamp]), 'TJoy.Polling');
+      // Log.LogDebug(Format('JOYBUTTON [%d] Button:%d  State:%d  Type:%d  Time:%d', [which, button, state, type_, timestamp]), 'TJoy.Polling');
       Joy.OnControllerButton(which, button, ifthen(state = SDL_PRESSED, bsPressed, bsReleased), true);
     end;
 
   SDL_CONTROLLERDEVICEADDED:
     begin
-      Log.LogDebug(Format('CONTROLLERDEVICEADDED [DeviceID=%d]', [Event.cdevice.which]), 'TJoy.Polling');
+      // Log.LogDebug(Format('CONTROLLERDEVICEADDED [DeviceID=%d]', [Event.cdevice.which]), 'TJoy.Polling');
       Joy.OnControllerAdded(Event.cdevice.which);
     end;
   SDL_CONTROLLERDEVICEREMOVED:
     begin
-      Log.LogDebug(Format('CONTROLLERDEVICEREMOVED [InstanceID=%d]', [Event.cdevice.which]), 'TJoy.Polling');
+      // Log.LogDebug(Format('CONTROLLERDEVICEREMOVED [InstanceID=%d]', [Event.cdevice.which]), 'TJoy.Polling');
       Joy.OnControllerRemoved(Event.cdevice.which);
     end;
   SDL_CONTROLLERDEVICEREMAPPED:
     begin
-      Log.LogDebug(Format('CONTROLLERDEVICEREMAPPED [InstanceID=%d]', [Event.cdevice.which]), 'TJoy.Polling');
+      // Log.LogDebug(Format('CONTROLLERDEVICEREMAPPED [InstanceID=%d]', [Event.cdevice.which]), 'TJoy.Polling');
       Joy.OnControllerRemapped(Event.cdevice.which);
     end;
 
   SDL_CONTROLLERAXISMOTION:
     with Event.caxis do
     begin
-      Log.LogDebug(Format('CONTROLLERAXISMOTION [%d] Axis:%d  Value:%d  Time:%d', [which, axis, value, timestamp]), 'TJoy.Polling');
+      // Log.LogDebug(Format('CONTROLLERAXISMOTION [%d] Axis:%d  Value:%d  Time:%d', [which, axis, value, timestamp]), 'TJoy.Polling');
       Joy.OnControllerMotion(which, axis, EnsureRange((1.0*value) / JOYSTICK_AXIS_MAX_RANGE, -1.0, 1.0), timestamp);
     end;
   SDL_CONTROLLERBUTTONDOWN:
     with Event.cbutton do
     begin
-      Log.LogDebug(Format('CONTROLLERBUTTONDOWN [%d] Button:%d  State:%d  Type:%d  Time:%d', [which, button, state, type_, timestamp]), 'TJoy.Polling');
+      // Log.LogDebug(Format('CONTROLLERBUTTONDOWN [%d] Button:%d  State:%d  Type:%d  Time:%d', [which, button, state, type_, timestamp]), 'TJoy.Polling');
       Joy.OnControllerButton(which, button, ifthen(state = SDL_PRESSED, bsPressed, bsReleased));
     end;
   SDL_CONTROLLERBUTTONUP:
     with Event.cbutton do
     begin
-      Log.LogDebug(Format('CONTROLLERBUTTONUP [%d] Button:%d  State:%d  Type:%d  Time:%d', [which, button, state, type_, timestamp]), 'TJoy.Polling');
+      // Log.LogDebug(Format('CONTROLLERBUTTONUP [%d] Button:%d  State:%d  Type:%d  Time:%d', [which, button, state, type_, timestamp]), 'TJoy.Polling');
       Joy.OnControllerButton(which, button, ifthen(state = SDL_PRESSED, bsPressed, bsReleased));
     end;
   SDL_JOYDEVICEADDED:
@@ -403,13 +404,11 @@ end;
 
 constructor TJoy.Create;
 var
-  Controller: TJoyController;
+  Controller, LoopController: TJoyController;
   Error: string;
 
   N: integer;
   I: integer;
-  BestButtonCount: integer;
-  BestIndex: integer;
 begin
   inherited;
 
@@ -438,30 +437,22 @@ begin
   if Controllers.Count = 1 then
   begin
     Controller := Controllers.Data[0];
-    Log.LogStatus(Format('Using controller: %s', [Controllers.Data[0].Name]), 'TJoy.Create');
+    Log.LogStatus(Format('Using controller: %s', [Controller.Name]), 'TJoy.Create');
   end;
 
 
   if not assigned(Controller) then
   begin
     // try finding game controller with best button count
-    BestIndex := -1;
-    BestButtonCount := 0;
     for i := 0 to Controllers.Count -1 do
     begin
-      if Controllers.Data[i].ControllerType = ctGameController then
-      begin
-        if Controllers.Data[i].ButtonCount > BestButtonCount then
-        begin
-          BestButtonCount := Controllers.Data[i].ButtonCount;
-          BestIndex := i;
-        end;
+      LoopController := Controllers.Data[i];
+      if (LoopController.ControllerType = ctGameController) and ((not assigned(Controller)) or (LoopController.ButtonCount > Controller.ButtonCount)) then begin
+        Controller := LoopController;
       end;
     end;
 
-    if BestIndex >= 0 then
-    begin
-      Controller := Controllers.Data[BestIndex];
+    if assigned(Controller) then begin
       Log.LogStatus(Format('Using game controller: %s', [Controller.Name]), 'TJoy.Create');
     end;
   end;
@@ -470,23 +461,15 @@ begin
   if not assigned(Controller) then
   begin
     // try finding joystick with best button count
-    BestIndex := -1;
-    BestButtonCount := 0;
     for i := 0 to Controllers.Count -1 do
     begin
-      if Controllers.Data[i].ControllerType = ctJoystick then
-      begin
-        if Controllers.Data[i].ButtonCount > BestButtonCount then
-        begin
-          BestButtonCount := Controllers.Data[i].ButtonCount;
-          BestIndex := i;
-        end;
+      LoopController := Controllers.Data[i];
+      if (LoopController.ControllerType = ctJoystick) and ((not assigned(Controller)) or (LoopController.ButtonCount > Controller.ButtonCount)) then begin
+        Controller := LoopController;
       end;
     end;
 
-    if BestIndex >= 0 then
-    begin
-      Controller := Controllers.Data[BestIndex];
+    if assigned(Controller) then begin
       Log.LogStatus(Format('Using legacy Joystick: %s', [Controller.Name]), 'TJoy.Create');
     end;
   end;
@@ -504,7 +487,6 @@ end;
 destructor TJoy.Destroy;
 var
   i, index: integer;
-  Controller: TJoyController;
 begin
   inherited;
 
@@ -680,7 +662,6 @@ end;
 procedure TJoy.OnControllerButton(id: integer; ButtonId: integer; State: TJoyButtonState; Legacy: boolean);
 var
   Controller: TJoyController;
-  i, index: integer;
 begin
 
   // ignore unknown or disabled input
@@ -781,7 +762,6 @@ end;
 function TJoyController.SimulateKeyboard(Key: TSDL_KeyCode; Pressed: boolean; NoMouseOverride: boolean): boolean;
 var
   JoyEvent: TSDL_Event;
-  TempName: string;
 begin
   Result := true;
 

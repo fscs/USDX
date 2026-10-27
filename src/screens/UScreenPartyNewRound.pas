@@ -86,7 +86,6 @@ type
       constructor Create; override;
       function ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean; override;
       procedure OnShow; override;
-      procedure SetAnimationProgress(Progress: real); override;
       procedure Refresh;
   end;
 
@@ -104,7 +103,6 @@ uses
   UMain,
   UParty,
   USong,
-  UTexture,
   UUnicodeUtils;
 
 function TScreenPartyNewRound.ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean;
@@ -164,11 +162,9 @@ end;
 
 procedure TScreenPartyNewRound.Refresh;
 var
-  N, R, I: Integer;
+  N, I: Integer;
   NumRounds: Integer;
 begin
-  R := Party.CurrentRound;
-
   //Set Visibility of Round Infos
   NumRounds := Length(Party.Rounds);
 
@@ -266,8 +262,6 @@ begin
 end;
 
 procedure TScreenPartyNewRound.OnShow;
-var
-  I: integer;
   function GetTeamPlayers(const Num: integer): UTF8String;
   var
     Players: array of UTF8String;
@@ -391,13 +385,6 @@ begin
   end
   else
     Text[TextNextPlayer3].Visible := false;
-end;
-
-procedure TScreenPartyNewRound.SetAnimationProgress(Progress: real);
-begin
-  {Button[0].Texture.ScaleW := Progress;
-  Button[1].Texture.ScaleW := Progress;
-  Button[2].Texture.ScaleW := Progress; }
 end;
 
 end.

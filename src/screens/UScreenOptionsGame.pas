@@ -45,7 +45,7 @@ uses
   sdl2;
 
 type
-  TScreenOptionsGame = class(TMenu)
+  TScreenOptionsGame = class(TOptionsMenu)
     private
       old_Language:  integer;
       old_SongMenu:  integer;
@@ -61,6 +61,9 @@ type
       procedure ReloadAllScreens;
       procedure ReloadSongMenu;
       procedure UpdateCalculatedSelectSlides(Init: boolean);
+
+    protected
+      procedure LoadWidgets; override;
 
     public
       constructor Create; override;
@@ -85,6 +88,17 @@ uses
 type
   TGetTextFunc = function(var Param: integer; Offset: integer; Modify: boolean; OptText: PUtf8String): boolean;
   UTF8StringArray = array of UTF8String;
+  InteractionID = (
+    iLanguageSlide,
+    iSongMenuSlide,
+    iTabsSlide,
+    iSortingSlide,
+    iShowScoresSlide,
+    iDebugSlide,
+    iAVDelaySlide,
+    iMicDelaySlide,
+    iBackButton
+  );
 
 function TScreenOptionsGame.ParseInput(PressedKey: cardinal; CharCode: UCS4Char; PressedDown: boolean): boolean;
 begin
@@ -111,7 +125,7 @@ begin
         end;
       SDLK_RETURN:
         begin
-          if SelInteraction = 8 then
+          if SelInteraction = ord(iBackButton) then
             Leave;
         end;
       SDLK_DOWN:
@@ -120,26 +134,26 @@ begin
         InteractPrev;
       SDLK_RIGHT:
         begin
-          if (SelInteraction >= 0) and (SelInteraction <= 7) then
+          if Interactions[SelInteraction].Typ = iSelectS then
           begin
             AudioPlayback.PlaySound(SoundLib.Option);
             InteractInc;
           end;
           UpdateCalculatedSelectSlides(false);
-          if (SelInteraction = 0) then
+          if (SelInteraction = ord(iLanguageSlide)) then
           begin
             ReloadCurrentScreen;
           end;
         end;
       SDLK_LEFT:
         begin
-          if (SelInteraction >= 0) and (SelInteraction <= 7) then
+          if Interactions[SelInteraction].Typ = iSelectS then
           begin
             AudioPlayback.PlaySound(SoundLib.Option);
             InteractDec;
           end;
           UpdateCalculatedSelectSlides(false);
-          if (SelInteraction = 0) then
+          if (SelInteraction = ord(iLanguageSlide)) then
           begin
             ReloadCurrentScreen;
           end;
@@ -211,56 +225,22 @@ begin
   CalculateSelectSlide(Init, @GetMicDelayOptText, Ini.MicDelay, MicDelayOptInt, IMicDelay);
   if Init then
   begin
-    AVDelaySelectNum := AddSelectSlide(Theme.OptionsGame.SelectAVDelay, AVDelayOptInt, IAVDelay);
-    MicDelaySelectNum := AddSelectSlide(Theme.OptionsGame.SelectMicDelay, MicDelayOptInt, IMicDelay);
+    AVDelaySelectNum := AddSelectSlide('SING_OPTIONS_GAME_AVDELAY', AVDelayOptInt, IAVDelay);
+    MicDelaySelectNum := AddSelectSlide('SING_OPTIONS_GAME_MICDELAY', MicDelayOptInt, IMicDelay);
   end
   else
   begin
-    UpdateSelectSlideOptions(Theme.OptionsGame.SelectAVDelay, AVDelaySelectNum, IAVDelay, AVDelayOptInt);
-    UpdateSelectSlideOptions(Theme.OptionsGame.SelectMicDelay, MicDelaySelectNum, IMicDelay, MicDelayOptInt);
+    UpdateSelectSlideOptions(AVDelaySelectNum, IAVDelay, AVDelayOptInt);
+    UpdateSelectSlideOptions(MicDelaySelectNum, IMicDelay, MicDelayOptInt);
   end;
 end;
 
 constructor TScreenOptionsGame.Create;
 begin
   inherited Create;
-
-  LoadFromTheme(Theme.OptionsGame);
-
-  Theme.OptionsGame.SelectLanguage.showArrows  := true;
-  Theme.OptionsGame.SelectLanguage.oneItemOnly := true;
-  AddSelectSlide(Theme.OptionsGame.SelectLanguage,   Ini.Language,  ILanguageTranslated);
-
-  Theme.OptionsGame.SelectSongMenu.showArrows  := true;
-  Theme.OptionsGame.SelectSongMenu.oneItemOnly := true;
-  AddSelectSlide(Theme.OptionsGame.SelectSongMenu,    Ini.SongMenu, ISongMenuTranslated);
-
-  Theme.OptionsGame.SelectTabs.showArrows  := true;
-  Theme.OptionsGame.SelectTabs.oneItemOnly := true;
-  AddSelectSlide(Theme.OptionsGame.SelectTabs,       Ini.Tabs,       ITabsTranslated);
-
-  Theme.OptionsGame.SelectSorting.showArrows  := true;
-  Theme.OptionsGame.SelectSorting.oneItemOnly := true;
-  AddSelectSlide(Theme.OptionsGame.SelectSorting,    Ini.Sorting,    ISortingTranslated);
-
-  Theme.OptionsGame.SelectShowScores.showArrows  := true;
-  Theme.OptionsGame.SelectShowScores.oneItemOnly := true;
-  AddSelectSlide(Theme.OptionsGame.SelectShowScores,    Ini.ShowScores,    IShowScoresTranslated);
-
-  Theme.OptionsGame.SelectDebug.showArrows  := true;
-  Theme.OptionsGame.SelectDebug.oneItemOnly := true;
-  AddSelectSlide(Theme.OptionsGame.SelectDebug,      Ini.Debug,      IDebugTranslated);
-
-  Theme.OptionsGame.SelectAVDelay.showArrows  := true;
-  Theme.OptionsGame.SelectAVDelay.oneItemOnly := true;
-  Theme.OptionsGame.SelectMicDelay.showArrows  := true;
-  Theme.OptionsGame.SelectMicDelay.oneItemOnly := true;
-  UpdateCalculatedSelectSlides(true);
-
-  AddButton(Theme.OptionsGame.ButtonExit);
-  if (Length(Button[0].Text) = 0) then
-    AddButtonText(20, 5, Theme.Options.Description[OPTIONS_DESC_INDEX_BACK]);
-
+  Description := Language.Translate('SING_OPTIONS_GAME_DESC');
+  WhereAmI := Language.Translate('SING_OPTIONS_GAME_WHEREAMI');
+  Load;
 end;
 
 procedure TScreenOptionsGame.OnShow;
@@ -319,11 +299,23 @@ procedure TScreenOptionsGame.ReloadSongMenu;
 begin
   if (Ini.Sorting <> old_Sorting) or (Ini.Tabs <> old_Tabs) or (old_SongMenu <> Ini.SongMenu) then
   begin
-    Theme.ThemeSongLoad;
-
+    Ini.TabsAtStartup := Ini.Tabs;
+    Theme.ThemeSongReload;
     ScreenSong.Free;
     ScreenSong := TScreenSong.Create;
   end;
+end;
+
+procedure TScreenOptionsGame.LoadWidgets;
+begin
+  // when editing this, also update the InteractionID enum declaration
+  AddSelectSlide('SING_OPTIONS_GAME_LANGUAGE', Ini.Language, ILanguageTranslated);
+  AddSelectSlide('SING_OPTIONS_GAME_SONGMENU', Ini.SongMenu, ISongMenuTranslated);
+  AddSelectSlide('SING_OPTIONS_GAME_TABS', Ini.Tabs, ITabsTranslated);
+  AddSelectSlide('SING_OPTIONS_GAME_SORTING', Ini.Sorting, ISortingTranslated);
+  AddSelectSlide('SING_OPTIONS_GAME_SHOWSCORES', Ini.ShowScores, IShowScoresTranslated);
+  AddSelectSlide('SING_OPTIONS_GAME_DEBUG', Ini.Debug, IDebugTranslated);
+  UpdateCalculatedSelectSlides(true);
 end;
 
 end.

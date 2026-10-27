@@ -156,7 +156,7 @@ type
 
       function CreateVoiceStream(ChannelMap: integer; FormatInfo: TAudioFormatInfo): TAudioVoiceStream; override;
 
-      function GetMixer(): TAudioMixerStream; {$IFDEF HasInline}inline;{$ENDIF}
+      function GetMixer(): TAudioMixerStream;
       function GetAudioFormatInfo(): TAudioFormatInfo;
 
       procedure MixBuffers(DstBuffer, SrcBuffer: PByteArray; Size: cardinal; Volume: single); virtual;
@@ -317,7 +317,7 @@ begin
     begin
       // mix stream-data with mixer-buffer
       // Note: use Self.appVolume instead of Self.Volume to prevent recursive locking
-      Engine.MixBuffers(Buffer, MixerBuffer, Size, AppVolume * Stream.Volume);
+      Engine.MixBuffers(Buffer, MixerBuffer, Size, AppVolume * Stream.Volume * Stream.ReplayGainAdjustment);
     end;
   end;
 
@@ -402,6 +402,7 @@ begin
   GetMem(SourceBuffer, SourceBufferSize);
   fVolume := 1.0;
 
+  inherited;
   Result := true;
 end;
 
@@ -452,7 +453,9 @@ var
   Mixer: TAudioMixerStream;
 begin
   // only paused streams are not flushed
-  if (Status = ssPaused) then
+  if Status = ssPlaying then
+    Exit
+  else if Status = ssPaused then
     NeedsRewind := false;
 
   // rewind if necessary. Cases that require no rewind are:

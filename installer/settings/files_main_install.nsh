@@ -99,13 +99,70 @@ IfFileExists $INSTDIR\swresample-4.dll 0 +2
 Delete "$INSTDIR\swresample-4.dll"
 IfFileExists $INSTDIR\swscale-7.dll 0 +2
 Delete "$INSTDIR\swscale-7.dll"
+IfFileExists $INSTDIR\glew32.dll 0 +2
+Delete "$INSTDIR\glew32.dll"
+IfFileExists $INSTDIR\libprojectM.dll 0 +2
+Delete "$INSTDIR\libprojectM.dll"
+IfFileExists $INSTDIR\opengl32_.dll 0 +2
+Delete "$INSTDIR\opengl32_.dll"
+IfFileExists $INSTDIR\freetype6.dll 0 +2
+Delete "$INSTDIR\freetype6.dll"
+IfFileExists $INSTDIR\lua5.4.dll 0 +2
+Delete "$INSTDIR\lua5.4.dll"
+IfFileExists $INSTDIR\portaudio_x86.dll 0 +2
+Delete "$INSTDIR\portaudio_x86.dll"
+IfFileExists $INSTDIR\avcodec-61.dll 0 +2
+Delete "$INSTDIR\avcodec-61.dll"
+IfFileExists $INSTDIR\avformat-61.dll 0 +2
+Delete "$INSTDIR\avformat-61.dll"
+IfFileExists $INSTDIR\avutil-59.dll 0 +2
+Delete "$INSTDIR\avutil-59.dll"
+IfFileExists $INSTDIR\swresample-5.dll 0 +2
+Delete "$INSTDIR\swresample-5.dll"
+IfFileExists $INSTDIR\swscale-8.dll 0 +2
+Delete "$INSTDIR\swscale-8.dll"
+IfFileExists $INSTDIR\lua.dll 0 +2
+Delete "$INSTDIR\lua.dll"
+IfFileExists $INSTDIR\libopencv_core460.dll 0 +2
+Delete "$INSTDIR\libopencv_core460.dll"
+IfFileExists $INSTDIR\libopencv_imgcodecs460.dll 0 +2
+Delete "$INSTDIR\libopencv_imgcodecs460.dll"
+IfFileExists $INSTDIR\libopencv_imgproc460.dll 0 +2
+Delete "$INSTDIR\libopencv_imgproc460.dll"
+IfFileExists $INSTDIR\libopencv_videoio460.dll 0 +2
+Delete "$INSTDIR\libopencv_videoio460.dll"
+IfFileExists "$INSTDIR\libwebp-7.dll" 0 +2
+Delete "$INSTDIR\libwebp-7.dll"
+IfFileExists "$INSTDIR\libtiff-6.dll" 0 +2
+Delete "$INSTDIR\libtiff-6.dll"
+IfFileExists "$INSTDIR\libjpeg-8.dll" 0 +2
+Delete "$INSTDIR\libjpeg-8.dll"
+IfFileExists "$INSTDIR\libfreetype-6.dll" 0 +2
+Delete "$INSTDIR\libfreetype-6.dll"
+IfFileExists "$INSTDIR\libsharpyuv-0.dll" 0 +2
+Delete "$INSTDIR\libsharpyuv-0.dll"
+IfFileExists "$INSTDIR\libpng16-16.dll" 0 +2
+Delete "$INSTDIR\libpng16-16.dll"
+IfFileExists "$INSTDIR\portaudio_x64.dll" 0 +2
+Delete "$INSTDIR\portaudio_x64.dll"
+IfFileExists $INSTDIR\avcodec-62.dll 0 +2
+Delete "$INSTDIR\avcodec-62.dll"
+IfFileExists $INSTDIR\avformat-62.dll 0 +2
+Delete "$INSTDIR\avformat-62.dll"
+IfFileExists $INSTDIR\avutil-60.dll 0 +2
+Delete "$INSTDIR\avutil-60.dll"
+IfFileExists $INSTDIR\swresample-6.dll 0 +2
+Delete "$INSTDIR\swresample-6.dll"
+IfFileExists $INSTDIR\swscale-9.dll 0 +2
+Delete "$INSTDIR\swscale-9.dll"
+IfFileExists $INSTDIR\lua54.dll 0 +2
+Delete "$INSTDIR\lua54.dll"
 
 RMDir /r "$INSTDIR\Themes"
 RMDir /r "$INSTDIR\Skins"
 RMDir /r "$INSTDIR\Plugins"
 RMDir /r "$INSTDIR\Languages"
 RMDir /r "$INSTDIR\Webs"
-RMDir /r "$INSTDIR\Avatars"
 
 ; Create Directories:
 
@@ -143,7 +200,6 @@ File /r /x .git /x .gitignore ..\game\fonts
 File /r /x .git /x .gitignore ..\game\resources
 File /r /x .git /x .gitignore ..\game\visuals
 File /r /x .git /x .gitignore ..\game\webs
-File /r /x .git /x .gitignore ..\game\soundfonts
 File /r /x .git /x .gitignore ..\game\avatars
 
 ; Root dir:
